@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Voici déjà une semaine que cette vulnérabilité fait parler d&#39;elle, elle permet une élévation de privilège d&#39;une manière très étonnante. Le concept Elle repose sur une erreur de conception...">
+        <meta name="keywords" content="A chaud, News">
+        <link rel="icon" href="https://www.dailysecurity.fr/favicon.png">
+        <title>La vulnérabilité RowHammer - Daily Security</title>
+
+        <!-- Stylesheets -->
+        <link href="https://www.dailysecurity.fr/theme/css/all.min.css" rel="stylesheet">
+        <!-- /Stylesheets -->
+
+        <!-- RSS Feeds -->
+        <link href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Daily Security Full Atom Feed" />
+        <link href="https://www.dailysecurity.fr/category/lactualite-commentee/feed/index.xhtml" type="application/atom+xml" rel="alternate" title="Daily Security Categories Atom Feed" />
+        <!-- /RSS Feeds -->
+
+        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+          <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+    </head>
+
+    <body>
+
+        <!-- Header -->
+    <div class="header-container" style="background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), url('https://www.dailysecurity.fr/images/fond.png'); background-position: center; background-size: cover;">
+
+            <!-- Static navbar -->
+            <div class="container">
+                <div class="header-nav">
+                    <div class="header-logo">
+ 
+                       <a class="pull-left" href="https://www.dailysecurity.fr/" style="outline : none;"><img class="mr20 hidden-xs" src="https://www.dailysecurity.fr/images/logo.png" height="57" width="312" alt="logo"></a>
+                    </div>
+                    <div class="nav pull-right">
+                                <a href="https://www.dailysecurity.fr/">Accueil</a>
+                                <a href="https://www.dailysecurity.fr/categories.html">Catégories</a>
+                            <a  href="https://www.dailysecurity.fr/presentation">À propos</a>
+                    </div>
+                </div>
+            </div>
+            <!-- /Static navbar -->
+
+            <!-- Header -->
+    <!-- Header -->
+    <div class="container header-wrapper">
+        <div class="row">
+              <div class="col-lg-12">
+                  <div class="header-content">
+                      <h1 class="header-title">La vulnérabilité RowHammer</h1>
+                      <p class="header-date">Par <a href="https://www.dailysecurity.fr/author/geluchat.html">Geluchat</a>, mar. 17 mars 2015, dans la catégorie <a href="https://www.dailysecurity.fr/category/lactualite-commentee.html">L'actualité commentée</a></p>
+                      <div class="header-underline"></div>
+                      <div class="clearfix"></div>
+                      <p class="pull-right header-tags">
+                          <span class="glyphicon glyphicon-tags mr5" aria-hidden="true"></span>
+<a href="https://www.dailysecurity.fr/tag/a-chaud.html">A chaud</a>, <a href="https://www.dailysecurity.fr/tag/news.html">News</a>                      </p>
+                  </div>
+              </div>
+        </div>
+    </div>
+    <!-- /Header -->
+            <!-- /Header -->
+
+        </div>
+        <!-- /Header -->
+
+
+        <!-- Content -->
+    <div class="container content">
+        <p>Voici déjà une semaine que cette
+<a href="http://googleprojectzero.blogspot.in/2015/03/exploiting-dram-rowhammer-bug-to-gain.html">vulnérabilité</a>
+fait parler d'elle, elle permet une élévation de privilège d'une manière
+très étonnante.</p>
+<h3>Le concept</h3>
+<p>Elle repose sur une erreur de conception matérielle de certaines
+barrettes de DRAM (Dynamic Random Access Memory).</p>
+<p>Il y a dans ces dernières des millions de condensateurs très proches les
+uns des autres.</p>
+<p>Ainsi, lorsque l'on modifie un bit, il y a des chances pour que les
+condensateurs adjacents soient modifiés, on appelle ça du 'Bit
+flipping'  </p>
+<p>Plus précisément, l'exploit fonctionne sur le principe suivant:</p>
+<p>On cherche à modifier des bits de la mémoire qui ne nous appartiennent
+pas.<br>
+Pour cela, on utilise une technique dite RowHammer ("Martellement de
+colonne") qui consiste à lire un bit sur une colonne puis à vider sa
+cellule et on répète en boucle.</p>
+<div class="highlight"><pre><span></span><code><span class="nl">code1a:</span><span class="w"></span>
+<span class="w">     </span><span class="nf">mov</span><span class="w"> </span><span class="p">(</span><span class="no">X</span><span class="p">),</span><span class="w"> </span><span class="nv">%eax</span><span class="w">  </span><span class="c1">; Read from address X</span>
+<span class="w">     </span><span class="nf">mov</span><span class="w"> </span><span class="p">(</span><span class="no">Y</span><span class="p">),</span><span class="w"> </span><span class="nv">%ebx</span><span class="w">  </span><span class="c1">; Read from address Y</span>
+<span class="w">     </span><span class="nf">clflush</span><span class="w"> </span><span class="p">(</span><span class="no">X</span><span class="p">)</span><span class="w">  </span><span class="c1">; Flush cache for address X</span>
+<span class="w">     </span><span class="nf">clflush</span><span class="w"> </span><span class="p">(</span><span class="no">Y</span><span class="p">)</span><span class="w">  </span><span class="c1">; Flush cache for address Y</span>
+<span class="w">     </span><span class="nf">jmp</span><span class="w"> </span><span class="no">code1a</span><span class="w"></span>
+</code></pre></div>
+
+<p>Poussé à l’extrême, cela mène à une élévation de privilèges</p>
+<h3>Mon avis, les conséquences futurs</h3>
+<p>J'aime beaucoup les failles liées à un vrai défaut technique et matériel de la part du concepteur.</p>
+<p>Pour moi, ces vulnérabilités d'un type novateur n'annoncent que les prémisses d'une refonte du concept même des architectures modernes et des matériaux utilisés.</p>
+
+
+    <div class="comments">
+        <div id="disqus_thread"></div>
+            <script type="text/javascript">
+                var disqus_shortname = 'dailysecurity-fr';
+                var disqus_identifier = 'rowhammer';
+                var disqus_url = 'https://www.dailysecurity.fr/rowhammer';
+                (function() {
+                    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+                    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+            </script>
+        <noscript>Please enable JavaScript to view the comments.</noscript>
+    </div>
+        
+    </div>
+        <!-- /Content -->
+
+        <!-- Footer -->
+        <div class="footer gradient-2">
+            <div class="container footer-container ">
+                <div class="row">
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Sitemap</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://www.dailysecurity.fr/archives.html">Archives</a></li>
+                            <li><a href="https://www.dailysecurity.fr/categories.html">Catégories</a></li>
+                            <li><a href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">Flux RSS</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Social</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://twitter.com/Geluchat" target="_blank">Twitter</a></li>
+                            <li><a href="https://github.com/Geluchat" target="_blank">GitHub</a></li>
+                            <li><a href="https://www.linkedin.com/in/baptiste-devigne/" target="_blank">Linkedin</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Les blogs des amis</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://proofofcalc.com/" target="_blank">Proof of Calc</a></li>
+                            <li><a href="http://beta.hackndo.com" target="_blank">Blog de Pixis</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-12 col-sm-3 col-md-3 col-lg-3">
+                        <p class="pull-right text-right">
+                            <small><em>Powered by <a href="http://docs.getpelican.com/" target="_blank">pelican</a></em></small><br/>
+                            <small><em>Theme <a href="https://github.com/molivier" target="_blank">molivier</a></em></small><br/>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /Footer -->
+        <!-- Google Analytics -->
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', 'UA-97100797-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        <!-- /Google Analytics -->
+     </body>
+</html>

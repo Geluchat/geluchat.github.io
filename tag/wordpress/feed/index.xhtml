@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - wordpress</title><link href="https://www.dailysecurity.fr/" rel="alternate"></link><link href="https://www.dailysecurity.fr/tag/wordpress/feed/index.xhtml" rel="self"></link><id>https://www.dailysecurity.fr/</id><updated>2015-05-12T13:04:00+02:00</updated><entry><title>Comment pirater un WordPress, ou pas...</title><link href="https://www.dailysecurity.fr/comment-pirater-un-wordpress" rel="alternate"></link><published>2015-05-12T13:04:00+02:00</published><updated>2015-05-12T13:04:00+02:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2015-05-12:/comment-pirater-un-wordpress</id><summary type="html">&lt;p&gt;Je ne sais pas si vous l'avez remarqué, mais il y a une semaine mon site était indisponible en raison d'une maintenance.&lt;/p&gt;
+&lt;p&gt;Tout a débuté le 1er Mai, je me rends comme chaque jour sur mon site pour les mises à jour quotidiennes et c'est alors qu'apparaît une belle deface …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Je ne sais pas si vous l'avez remarqué, mais il y a une semaine mon site était indisponible en raison d'une maintenance.&lt;/p&gt;
+&lt;p&gt;Tout a débuté le 1er Mai, je me rends comme chaque jour sur mon site pour les mises à jour quotidiennes et c'est alors qu'apparaît une belle deface (modification de la page d'accueil du site) faite par un groupe de h4x0r avec un message dans un anglais approximatif "Ure security is bad, go patch, blabla" ainsi qu'une petite mention disant que payer un hébergeur ne veut pas dire que l'on est en sécurité.&lt;/p&gt;
+&lt;p&gt;Sur le coup, j'imagine que l'un de mes plugins n'a pas été mis à jour et j'accuse le coup en me disant qu'après tout, ce n'est qu'un Wordpress.&lt;/p&gt;
+&lt;p&gt;Après une analyse un peu plus approfondie des logs j'en viens à une conclusion étrange : il semblerait qu'ils se soient tous simplement connectés avec mon compte administrateur.&lt;/p&gt;
+&lt;p&gt;Hop, je lance un scan antivirus sur mon PC, rien n'est détecté, même pas le moindre logiciel espion, pas un faux positif, rien.&lt;/p&gt;
+&lt;p&gt;J'en viens à penser que c'est peut-être une 0day mais le souvenir de la tête de mort sur la deface ainsi que les pseudos du type xXxD4rkAng3lxXx me rappellent vite que la faille ne doit pas être bien compliquée.&lt;/p&gt;
+&lt;p&gt;Je reçois plusieurs messages via IRC et Skype, un de mes amis m'a même conseillé en rigolant de lancer un armitage auto_pwn, je décide de rester plus calme en lançant un scan Nikto classique ainsi qu'une analyse des plugins Wordpress, peut être que quelque chose m'aurait échappé ...&lt;/p&gt;
+&lt;p&gt;C'est alors qu'une personne fort sympathique m'a contacté sur IRC pour me souhaiter bonne chance pour la remise en place de mon site. En discutant avec celle-ci, j'apprends que le port 31337 est ouvert sur le serveur qui m'héberge.&lt;/p&gt;
+&lt;p&gt;J'en viens alors à deux hypothèses remplies de questions :&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Ce shell vient-il de mon site?&lt;/li&gt;
+&lt;li&gt;S'il n'est pas à moi que fait-il là ? Et quels sont ses droits sur le serveur ?&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Afin de satisfaire ma curiosité je décide de m'y connecter, sachant que mon hébergeur mutualisé est lié au domaine snip.snap (ce n'est pas le domaine réel), je lance un petit :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="gp"&gt;$ &lt;/span&gt;nc snip.snap &lt;span class="m"&gt;31337&lt;/span&gt;.
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Je vérifie l'id, il correspond au compte "touspour".&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Command id Pulseheberg" src="https://www.dailysecurity.fr/images/id.png"&gt;&lt;/p&gt;
+&lt;p&gt;Et là, descente en enfer, encore une fois les mêmes questions : "Quels sont ses droits sur le serveur ? Que fait-il là ?".&lt;/p&gt;
+&lt;p&gt;Pour la deuxième question il faudra que je demande au support de mon hébergeur, je décide donc de chercher la réponse à la première question.&lt;/p&gt;
+&lt;h2&gt;Quels sont ses droits sur le serveur?&lt;/h2&gt;
+&lt;p&gt;Quelques commandes me permettent de voir que je ne suis de toute évidence pas doté de droits root, ouf.&lt;/p&gt;
+&lt;p&gt;Grâce à un affichage de /etc/passwd je vois qu'un compte est créé pour chaque nouvel utilisateur.&lt;/p&gt;
+&lt;p&gt;Niveau sécurité, ça n'a pas l'air au top niveau mais au moins je ne peux pas me déplacer dans les dossiers des autres personnes.&lt;/p&gt;
+&lt;p&gt;Enfin, ça, c'était avant le drame ...&lt;/p&gt;
+&lt;p&gt;Toujours dans le but final de découvrir comment mon site a pu être piraté par notre chère Dr34mT34m, je lance à tout hasard un listing des répertoires via le shell sur mon répertoire à priori privé :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Listing directory dailysecurity" src="https://www.dailysecurity.fr/images/listing.png"&gt;&lt;/p&gt;
+&lt;p&gt;Et là, horreur, on ne peut pas se déplacer dans les répertoires mais on peut les lister.&lt;/p&gt;
+&lt;p&gt;Je rentre la commande :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="gp"&gt;$ &lt;/span&gt;cat /home/dailysec/public_html/wp-config.php
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Des gouttes de sueurs commencent à perler sur mon front quand je vois apparaître :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Base de données Wordpress" src="https://www.dailysecurity.fr/images/bdd.png"&gt;&lt;/p&gt;
+&lt;p&gt;A partir de ce moment, je choisis de me connecter sur le port 3306
+(MySQL) et un beau OPEN se peint devant mes yeux.&lt;/p&gt;
+&lt;p&gt;L'attaque devient alors claire:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;On se connecte sur le port 31337&lt;/li&gt;
+&lt;li&gt;On récupère les logins MySQL&lt;/li&gt;
+&lt;li&gt;On se connecte et on modifie le mot de passe administrateur WordPress&lt;/li&gt;
+&lt;li&gt;On peut upload un shell dans les templates ou juste via l'upload&lt;/li&gt;
+&lt;li&gt;Enjoy your shell ...&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Que fait-il là?&lt;/h2&gt;
+&lt;p&gt;Bonne question, pour y répondre j'ai dû batailler avec le support de Pulseheberg qui m'a envoyé balader :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Message PulseHeberg" src="https://www.dailysecurity.fr/images/message.png"&gt;&lt;/p&gt;
+&lt;p&gt;Etant une personne très patiente et dotée d'un sens du sarcasme assez poussé, je lui ai bien sûr répondu :&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;"Étonnamment quand je fais un 'nc snip.snap 31337' j'obtiens un shell
+console.
+ Vos audits de sécurités sont-ils sélectifs dans le genre "on laisse
+le port 31337 ouvert, ça fait classe" ?
+ Je dis bien sûr tout ça avec le plus grand des humours mais ça me
+reste tout de même en travers de la gorge ..."&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Le tout accompagné des screenshots présents dans l'article.&lt;/p&gt;
+&lt;p&gt;Ma réponse n'a pas dû plaire au "Développeur en chef" puisque c'est une autre personne qui m'a répondu que la faille était "patchée" et "bloquée niveau firewall".&lt;/p&gt;
+&lt;p&gt;Je cherche à en savoir plus sur l'origine de ce shell et j'obtiens une réponse pour le moins originale :&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;"Le port avait été ouvert lors d'une très ancienne intervention et
+n'avait pas été fermé correctement."&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;De toute évidence ma réponse au "Développeur en chef" avait tapé dans le mille : les pseudos audits de sécurité quotidiens n'avaient pas vu le port 31337 ouvert.&lt;/p&gt;
+&lt;p&gt;Pire, le firewall semblait être un firewall à DROP.&lt;/p&gt;
+&lt;p&gt;Pour ceux qui ne connaissent pas les firewalls à DROP sachez que cela correspond grossièrement à ajouter des règles interdisant d'ouvrir tel ou tel port, ce qui n'est absolument pas sécurisé.&lt;/p&gt;
+&lt;h2&gt;Retour d'expérience chez PulseHeberg&lt;/h2&gt;
+&lt;p&gt;Avant d'en venir à des conclusions hâtives, je souhaiterais vous éclairer sur les points essentiels de mon ressenti sur "l'expérience Pulseheberg".&lt;/p&gt;
+&lt;p&gt;Lors de mon inscription, j'ai commandé un VPS afin de gérer moi-même la sécurité du serveur.&lt;/p&gt;
+&lt;p&gt;La livraison s'est déroulée sans encombre. Par contre, mes 8 Go de RAM allouée ne semblaient pas correspondre au résultat fourni par la commande "free" qui m'indiquait 8To.&lt;/p&gt;
+&lt;p&gt;J'ai appris plus tard qu'ils avaient mal configuré la VM.&lt;/p&gt;
+&lt;p&gt;Je me demande ce que cela aurait fait si j'avais mis à profit ces 8To, sûrement une coupure générale de toutes les VM du parc.&lt;/p&gt;
+&lt;p&gt;Au bout d'un mois, le serveur ne répondait plus, même via ssh, en tant "qu'administrateur de VPS du weekend" et avec ma confiance en moi légendaire, j'ai pensé à une erreur de ma part, personne n'est infaillible.&lt;/p&gt;
+&lt;p&gt;J'ai donc totalement réinstallé le serveur et le problème a persisté. Après trois tickets au support, il m'a semblé que le problème les dépassait.&lt;/p&gt;
+&lt;p&gt;J'avais déjà avancé de l'argent sur leur service, il me restait aux alentours de 40 euros, c'est pourquoi j'ai décidé de changer de prestation vers un hébergement mutualisé, la suite vous la connaissez...&lt;/p&gt;
+&lt;p&gt;Si je devais choisir un point positif chez PulseHeberg cela serait les tickets au support, auxquels on reçoit une réponse dans un temps record, environ une quinzaine de minutes, j'ai toujours eu l'impression que le support prenait vraiment mon problème à cœur.&lt;/p&gt;
+&lt;p&gt;Malgré un support à l'écoute ainsi que des prix défiants toute concurrence, leurs compétences gâchent totalement le service.&lt;/p&gt;
+&lt;p&gt;On comprend bien qu'ils essaient de faire de leur mieux, en revanche, comme vous vous en doutez, je ne vous conseille pas cet hébergeur, sauf si vous ne vous intéressez pas à la sécurité de votre site.&lt;/p&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à commenter cet article ainsi qu'à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique. &lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="wordpress"></category><category term="pirater"></category><category term="pulseheberg"></category></entry></feed>

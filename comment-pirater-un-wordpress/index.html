@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Je ne sais pas si vous l&#39;avez remarqué, mais il y a une semaine mon site était indisponible en raison d&#39;une maintenance. Tout a débuté le 1er Mai, je me rends comme chaque jour sur mon site pour...">
+        <meta name="keywords" content="pirater, pulseheberg, wordpress">
+        <link rel="icon" href="https://www.dailysecurity.fr/favicon.png">
+        <title>Comment pirater un WordPress, ou pas... - Daily Security</title>
+
+        <!-- Stylesheets -->
+        <link href="https://www.dailysecurity.fr/theme/css/all.min.css" rel="stylesheet">
+        <!-- /Stylesheets -->
+
+        <!-- RSS Feeds -->
+        <link href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Daily Security Full Atom Feed" />
+        <link href="https://www.dailysecurity.fr/category/lactualite-commentee/feed/index.xhtml" type="application/atom+xml" rel="alternate" title="Daily Security Categories Atom Feed" />
+        <!-- /RSS Feeds -->
+
+        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+          <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+    </head>
+
+    <body>
+
+        <!-- Header -->
+    <div class="header-container" style="background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), url('https://www.dailysecurity.fr/images/fond.png'); background-position: center; background-size: cover;">
+
+            <!-- Static navbar -->
+            <div class="container">
+                <div class="header-nav">
+                    <div class="header-logo">
+ 
+                       <a class="pull-left" href="https://www.dailysecurity.fr/" style="outline : none;"><img class="mr20 hidden-xs" src="https://www.dailysecurity.fr/images/logo.png" height="57" width="312" alt="logo"></a>
+                    </div>
+                    <div class="nav pull-right">
+                                <a href="https://www.dailysecurity.fr/">Accueil</a>
+                                <a href="https://www.dailysecurity.fr/categories.html">Catégories</a>
+                            <a  href="https://www.dailysecurity.fr/presentation">À propos</a>
+                    </div>
+                </div>
+            </div>
+            <!-- /Static navbar -->
+
+            <!-- Header -->
+    <!-- Header -->
+    <div class="container header-wrapper">
+        <div class="row">
+              <div class="col-lg-12">
+                  <div class="header-content">
+                      <h1 class="header-title">Comment pirater un WordPress, ou pas...</h1>
+                      <p class="header-date">Par <a href="https://www.dailysecurity.fr/author/geluchat.html">Geluchat</a>, mar. 12 mai 2015, dans la catégorie <a href="https://www.dailysecurity.fr/category/lactualite-commentee.html">L'actualité commentée</a></p>
+                      <div class="header-underline"></div>
+                      <div class="clearfix"></div>
+                      <p class="pull-right header-tags">
+                          <span class="glyphicon glyphicon-tags mr5" aria-hidden="true"></span>
+<a href="https://www.dailysecurity.fr/tag/pirater.html">pirater</a>, <a href="https://www.dailysecurity.fr/tag/pulseheberg.html">pulseheberg</a>, <a href="https://www.dailysecurity.fr/tag/wordpress.html">wordpress</a>                      </p>
+                  </div>
+              </div>
+        </div>
+    </div>
+    <!-- /Header -->
+            <!-- /Header -->
+
+        </div>
+        <!-- /Header -->
+
+
+        <!-- Content -->
+    <div class="container content">
+        <p>Je ne sais pas si vous l'avez remarqué, mais il y a une semaine mon site était indisponible en raison d'une maintenance.</p>
+<p>Tout a débuté le 1er Mai, je me rends comme chaque jour sur mon site pour les mises à jour quotidiennes et c'est alors qu'apparaît une belle deface (modification de la page d'accueil du site) faite par un groupe de h4x0r avec un message dans un anglais approximatif "Ure security is bad, go patch, blabla" ainsi qu'une petite mention disant que payer un hébergeur ne veut pas dire que l'on est en sécurité.</p>
+<p>Sur le coup, j'imagine que l'un de mes plugins n'a pas été mis à jour et j'accuse le coup en me disant qu'après tout, ce n'est qu'un Wordpress.</p>
+<p>Après une analyse un peu plus approfondie des logs j'en viens à une conclusion étrange : il semblerait qu'ils se soient tous simplement connectés avec mon compte administrateur.</p>
+<p>Hop, je lance un scan antivirus sur mon PC, rien n'est détecté, même pas le moindre logiciel espion, pas un faux positif, rien.</p>
+<p>J'en viens à penser que c'est peut-être une 0day mais le souvenir de la tête de mort sur la deface ainsi que les pseudos du type xXxD4rkAng3lxXx me rappellent vite que la faille ne doit pas être bien compliquée.</p>
+<p>Je reçois plusieurs messages via IRC et Skype, un de mes amis m'a même conseillé en rigolant de lancer un armitage auto_pwn, je décide de rester plus calme en lançant un scan Nikto classique ainsi qu'une analyse des plugins Wordpress, peut être que quelque chose m'aurait échappé ...</p>
+<p>C'est alors qu'une personne fort sympathique m'a contacté sur IRC pour me souhaiter bonne chance pour la remise en place de mon site. En discutant avec celle-ci, j'apprends que le port 31337 est ouvert sur le serveur qui m'héberge.</p>
+<p>J'en viens alors à deux hypothèses remplies de questions :</p>
+<ol>
+<li>Ce shell vient-il de mon site?</li>
+<li>S'il n'est pas à moi que fait-il là ? Et quels sont ses droits sur le serveur ?</li>
+</ol>
+<p>Afin de satisfaire ma curiosité je décide de m'y connecter, sachant que mon hébergeur mutualisé est lié au domaine snip.snap (ce n'est pas le domaine réel), je lance un petit :</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>nc snip.snap <span class="m">31337</span>.
+</code></pre></div>
+
+<p>Je vérifie l'id, il correspond au compte "touspour".</p>
+<p><img alt="Command id Pulseheberg" src="https://www.dailysecurity.fr/images/id.png"></p>
+<p>Et là, descente en enfer, encore une fois les mêmes questions : "Quels sont ses droits sur le serveur ? Que fait-il là ?".</p>
+<p>Pour la deuxième question il faudra que je demande au support de mon hébergeur, je décide donc de chercher la réponse à la première question.</p>
+<h2>Quels sont ses droits sur le serveur?</h2>
+<p>Quelques commandes me permettent de voir que je ne suis de toute évidence pas doté de droits root, ouf.</p>
+<p>Grâce à un affichage de /etc/passwd je vois qu'un compte est créé pour chaque nouvel utilisateur.</p>
+<p>Niveau sécurité, ça n'a pas l'air au top niveau mais au moins je ne peux pas me déplacer dans les dossiers des autres personnes.</p>
+<p>Enfin, ça, c'était avant le drame ...</p>
+<p>Toujours dans le but final de découvrir comment mon site a pu être piraté par notre chère Dr34mT34m, je lance à tout hasard un listing des répertoires via le shell sur mon répertoire à priori privé :</p>
+<p><img alt="Listing directory dailysecurity" src="https://www.dailysecurity.fr/images/listing.png"></p>
+<p>Et là, horreur, on ne peut pas se déplacer dans les répertoires mais on peut les lister.</p>
+<p>Je rentre la commande :</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>cat /home/dailysec/public_html/wp-config.php
+</code></pre></div>
+
+<p>Des gouttes de sueurs commencent à perler sur mon front quand je vois apparaître :</p>
+<p><img alt="Base de données Wordpress" src="https://www.dailysecurity.fr/images/bdd.png"></p>
+<p>A partir de ce moment, je choisis de me connecter sur le port 3306
+(MySQL) et un beau OPEN se peint devant mes yeux.</p>
+<p>L'attaque devient alors claire:</p>
+<ul>
+<li>On se connecte sur le port 31337</li>
+<li>On récupère les logins MySQL</li>
+<li>On se connecte et on modifie le mot de passe administrateur WordPress</li>
+<li>On peut upload un shell dans les templates ou juste via l'upload</li>
+<li>Enjoy your shell ...</li>
+</ul>
+<h2>Que fait-il là?</h2>
+<p>Bonne question, pour y répondre j'ai dû batailler avec le support de Pulseheberg qui m'a envoyé balader :</p>
+<p><img alt="Message PulseHeberg" src="https://www.dailysecurity.fr/images/message.png"></p>
+<p>Etant une personne très patiente et dotée d'un sens du sarcasme assez poussé, je lui ai bien sûr répondu :</p>
+<blockquote>
+<p>"Étonnamment quand je fais un 'nc snip.snap 31337' j'obtiens un shell
+console.
+ Vos audits de sécurités sont-ils sélectifs dans le genre "on laisse
+le port 31337 ouvert, ça fait classe" ?
+ Je dis bien sûr tout ça avec le plus grand des humours mais ça me
+reste tout de même en travers de la gorge ..."</p>
+</blockquote>
+<p>Le tout accompagné des screenshots présents dans l'article.</p>
+<p>Ma réponse n'a pas dû plaire au "Développeur en chef" puisque c'est une autre personne qui m'a répondu que la faille était "patchée" et "bloquée niveau firewall".</p>
+<p>Je cherche à en savoir plus sur l'origine de ce shell et j'obtiens une réponse pour le moins originale :</p>
+<blockquote>
+<p>"Le port avait été ouvert lors d'une très ancienne intervention et
+n'avait pas été fermé correctement."</p>
+</blockquote>
+<p>De toute évidence ma réponse au "Développeur en chef" avait tapé dans le mille : les pseudos audits de sécurité quotidiens n'avaient pas vu le port 31337 ouvert.</p>
+<p>Pire, le firewall semblait être un firewall à DROP.</p>
+<p>Pour ceux qui ne connaissent pas les firewalls à DROP sachez que cela correspond grossièrement à ajouter des règles interdisant d'ouvrir tel ou tel port, ce qui n'est absolument pas sécurisé.</p>
+<h2>Retour d'expérience chez PulseHeberg</h2>
+<p>Avant d'en venir à des conclusions hâtives, je souhaiterais vous éclairer sur les points essentiels de mon ressenti sur "l'expérience Pulseheberg".</p>
+<p>Lors de mon inscription, j'ai commandé un VPS afin de gérer moi-même la sécurité du serveur.</p>
+<p>La livraison s'est déroulée sans encombre. Par contre, mes 8 Go de RAM allouée ne semblaient pas correspondre au résultat fourni par la commande "free" qui m'indiquait 8To.</p>
+<p>J'ai appris plus tard qu'ils avaient mal configuré la VM.</p>
+<p>Je me demande ce que cela aurait fait si j'avais mis à profit ces 8To, sûrement une coupure générale de toutes les VM du parc.</p>
+<p>Au bout d'un mois, le serveur ne répondait plus, même via ssh, en tant "qu'administrateur de VPS du weekend" et avec ma confiance en moi légendaire, j'ai pensé à une erreur de ma part, personne n'est infaillible.</p>
+<p>J'ai donc totalement réinstallé le serveur et le problème a persisté. Après trois tickets au support, il m'a semblé que le problème les dépassait.</p>
+<p>J'avais déjà avancé de l'argent sur leur service, il me restait aux alentours de 40 euros, c'est pourquoi j'ai décidé de changer de prestation vers un hébergement mutualisé, la suite vous la connaissez...</p>
+<p>Si je devais choisir un point positif chez PulseHeberg cela serait les tickets au support, auxquels on reçoit une réponse dans un temps record, environ une quinzaine de minutes, j'ai toujours eu l'impression que le support prenait vraiment mon problème à cœur.</p>
+<p>Malgré un support à l'écoute ainsi que des prix défiants toute concurrence, leurs compétences gâchent totalement le service.</p>
+<p>On comprend bien qu'ils essaient de faire de leur mieux, en revanche, comme vous vous en doutez, je ne vous conseille pas cet hébergeur, sauf si vous ne vous intéressez pas à la sécurité de votre site.</p>
+<p>Voilà, c’est déjà terminé, n’hésitez pas à commenter cet article ainsi qu'à rejoindre mon <a href="https://twitter.com/Geluchat">Twitter</a> pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique. </p>
+<p>Geluchat.</p>
+
+
+    <div class="comments">
+        <div id="disqus_thread"></div>
+            <script type="text/javascript">
+                var disqus_shortname = 'dailysecurity-fr';
+                var disqus_identifier = 'comment-pirater-un-wordpress';
+                var disqus_url = 'https://www.dailysecurity.fr/comment-pirater-un-wordpress';
+                (function() {
+                    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+                    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+            </script>
+        <noscript>Please enable JavaScript to view the comments.</noscript>
+    </div>
+        
+    </div>
+        <!-- /Content -->
+
+        <!-- Footer -->
+        <div class="footer gradient-2">
+            <div class="container footer-container ">
+                <div class="row">
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Sitemap</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://www.dailysecurity.fr/archives.html">Archives</a></li>
+                            <li><a href="https://www.dailysecurity.fr/categories.html">Catégories</a></li>
+                            <li><a href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">Flux RSS</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Social</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://twitter.com/Geluchat" target="_blank">Twitter</a></li>
+                            <li><a href="https://github.com/Geluchat" target="_blank">GitHub</a></li>
+                            <li><a href="https://www.linkedin.com/in/baptiste-devigne/" target="_blank">Linkedin</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Les blogs des amis</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://proofofcalc.com/" target="_blank">Proof of Calc</a></li>
+                            <li><a href="http://beta.hackndo.com" target="_blank">Blog de Pixis</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-12 col-sm-3 col-md-3 col-lg-3">
+                        <p class="pull-right text-right">
+                            <small><em>Powered by <a href="http://docs.getpelican.com/" target="_blank">pelican</a></em></small><br/>
+                            <small><em>Theme <a href="https://github.com/molivier" target="_blank">molivier</a></em></small><br/>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /Footer -->
+        <!-- Google Analytics -->
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', 'UA-97100797-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        <!-- /Google Analytics -->
+     </body>
+</html>

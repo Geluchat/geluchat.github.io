@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Qu&#39;est-ce que la Same-origin policy : La Same-origin policy ou plus simplement SOP est l&#39;une des protections les plus importantes du navigateur. Elle sert à vérifier que les contenus chargés sur...">
+        <meta name="keywords" content="Failles Web, Javascript, SOP, Tutoriel, XSS, XSSI">
+        <link rel="icon" href="https://www.dailysecurity.fr/favicon.png">
+        <title>Les XSSI : Les limites de la Same-origin policy ! - Daily Security</title>
+
+        <!-- Stylesheets -->
+        <link href="https://www.dailysecurity.fr/theme/css/all.min.css" rel="stylesheet">
+        <!-- /Stylesheets -->
+
+        <!-- RSS Feeds -->
+        <link href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Daily Security Full Atom Feed" />
+        <link href="https://www.dailysecurity.fr/category/journal-de-geluchat/feed/index.xhtml" type="application/atom+xml" rel="alternate" title="Daily Security Categories Atom Feed" />
+        <!-- /RSS Feeds -->
+
+        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+          <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+
+
+    </head>
+
+    <body>
+
+        <!-- Header -->
+    <div class="header-container" style="background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), url('https://www.dailysecurity.fr/images/fond.png'); background-position: center; background-size: cover;">
+
+            <!-- Static navbar -->
+            <div class="container">
+                <div class="header-nav">
+                    <div class="header-logo">
+ 
+                       <a class="pull-left" href="https://www.dailysecurity.fr/" style="outline : none;"><img class="mr20 hidden-xs" src="https://www.dailysecurity.fr/images/logo.png" height="57" width="312" alt="logo"></a>
+                    </div>
+                    <div class="nav pull-right">
+                                <a href="https://www.dailysecurity.fr/">Accueil</a>
+                                <a href="https://www.dailysecurity.fr/categories.html">Catégories</a>
+                            <a  href="https://www.dailysecurity.fr/presentation">À propos</a>
+                    </div>
+                </div>
+            </div>
+            <!-- /Static navbar -->
+
+            <!-- Header -->
+    <!-- Header -->
+    <div class="container header-wrapper">
+        <div class="row">
+              <div class="col-lg-12">
+                  <div class="header-content">
+                      <h1 class="header-title">Les XSSI : Les limites de la Same-origin policy !</h1>
+                      <p class="header-date">Par <a href="https://www.dailysecurity.fr/author/geluchat.html">Geluchat</a>, mer. 13 septembre 2017, dans la catégorie <a href="https://www.dailysecurity.fr/category/journal-de-geluchat.html">Journal de geluchat</a></p>
+                      <div class="header-underline"></div>
+                      <div class="clearfix"></div>
+                      <p class="pull-right header-tags">
+                          <span class="glyphicon glyphicon-tags mr5" aria-hidden="true"></span>
+<a href="https://www.dailysecurity.fr/tag/failles-web.html">Failles Web</a>, <a href="https://www.dailysecurity.fr/tag/javascript.html">Javascript</a>, <a href="https://www.dailysecurity.fr/tag/sop.html">SOP</a>, <a href="https://www.dailysecurity.fr/tag/tutoriel.html">Tutoriel</a>, <a href="https://www.dailysecurity.fr/tag/xss.html">XSS</a>, <a href="https://www.dailysecurity.fr/tag/xssi.html">XSSI</a>                      </p>
+                  </div>
+              </div>
+        </div>
+    </div>
+    <!-- /Header -->
+            <!-- /Header -->
+
+        </div>
+        <!-- /Header -->
+
+
+        <!-- Content -->
+    <div class="container content">
+        <h2>Qu'est-ce que la Same-origin policy :</h2>
+<p>La <strong>Same-origin policy</strong> ou plus simplement <strong>SOP</strong> est l'une des protections les plus importantes du <strong>navigateur</strong>.</p>
+<p>Elle sert à vérifier que les contenus chargés sur la page proviennent du <strong>même</strong> domaine que celle-ci.</p>
+<p>La <a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript">documentation de Firefox</a> nous donne un tableau qui montre comment fonctionnent ces vérifications :
+<img alt="Documentation SOP Firefox" src="https://www.dailysecurity.fr/images/firefox_sop_doc.png"></p>
+<p>Pour faire simple, la <em>SOP</em> évite qu'un attaquant puisse récupérer des informations d'un <strong>autre site</strong> avec les droits de l'utilisateur connecté.</p>
+<p>Prenons l'exemple suivant qui montre un schéma d'attaque avec la SOP désactivée côté utilisateur :
+<img alt="Schéma XSS" src="https://www.dailysecurity.fr/images/schema_xssi.png"></p>
+<p>On voit ici que sans la <em>SOP</em> n'importe quel site visité peut accéder à un autre site en utilisant les cookies de l'utilisateur.</p>
+<p>Lorsque la <em>SOP</em> est activée, une erreur apparaitra à l'étape 2 : </p>
+<blockquote>
+<p>Blocage d’une requête multiorigines (Cross-Origin Request) : la politique « Same Origin » ne permet pas de consulter la ressource distante.</p>
+</blockquote>
+<h2>Les limites de la SOP</h2>
+<p>Nous avons vu rapidement comment fonctionne la <em>SOP</em>, reste maintenant à voir les limites de cette protection.</p>
+<p>En effet, la <em>SOP</em> doit être assez permissive pour pouvoir afficher des images ou charger du Javascript externe.</p>
+<p>Les exemples suivants ne sont donc pas soumis à cette protection :</p>
+<p>La balise <code>&lt;img&gt;</code> :</p>
+<div class="highlight"><pre><span></span><code><span class="p">&lt;</span><span class="nt">img</span> <span class="na">src</span><span class="o">=</span><span class="s">&quot;http://externe.dtd/image.png&quot;</span> <span class="p">/&gt;</span>
+</code></pre></div>
+
+<p>La balise <code>&lt;script&gt;</code> :</p>
+<div class="highlight"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">&quot;https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js&quot;</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>D'autres exemples de balises telles que les balises <em>link</em> ou <em>video</em> sont disponibles dans la <a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript">documentation de Firefox</a>.</p>
+<p>Ce mécanisme permissif permet d'envisager un scénario dans lequel la SOP ne fonctionne pas : l'utilisation de <strong>XSSI</strong> !</p>
+<h2>Les XSSI</h2>
+<p>Alors, une XSSI, c'est quoi ?</p>
+<p>Une XSSI, abréviation de <strong>Cross Site Script Inclusion</strong>, est le fait d'inclure une page distante ayant un contenu en Javascript.</p>
+<p>En effet, la balise <code>&lt;script&gt;</code> inclut, via son attribut <em>src</em>, une page externe qui est chargée comme étant du Javascript.</p>
+<p>Prenons l'exemple de script PHP disponible <a href="https://www.dailysecurity.fr/labs/info.php">ici</a>.</p>
+<p>Dans notre exemple, on suppose que la fonction <code>get_user_info()</code> récupère les informations dans une base de données grâce au cookie utilisateur :</p>
+<div class="highlight"><pre><span></span><code><span class="o">&lt;?</span><span class="nx">php</span>
+<span class="c1">// Charge la session utilisateur</span>
+<span class="nb">session_start</span><span class="p">();</span>
+<span class="k">function</span> <span class="nf">get_user_info</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="c1">// TODO : Récupérer les informations de l&#39;utilisateur courant dans la base de données</span>
+    <span class="c1">// Dans notre exemple, les informations seront hardcodées</span>
+    <span class="nv">$info</span> <span class="o">=</span> <span class="s2">&quot;{&#39;user&#39; : &#39;Geluchat&#39;, &#39;API_KEY&#39; : &#39;l3x11sG00dBuT3l54J34n1sB3tt3r&#39;}&quot;</span><span class="p">;</span>
+    <span class="k">return</span> <span class="nv">$info</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="nb">header</span><span class="p">(</span><span class="s1">&#39;Content-Type: application/javascript&#39;</span><span class="p">);</span>
+<span class="nv">$build_response</span> <span class="o">=</span> <span class="s2">&quot;var info = [&quot;</span><span class="o">.</span> <span class="nx">get_user_info</span><span class="p">()</span> <span class="o">.</span><span class="s2">&quot;];&quot;</span><span class="p">;</span>
+<span class="k">echo</span> <span class="nv">$build_response</span><span class="p">;</span>
+</code></pre></div>
+
+<p>On remarque que le script PHP change le Content-type de la page. On peut supposer que pour des raisons pratiques les informations sont chargées dynamiquement sur le site via du Javascript.</p>
+<p>En revanche, ce type d'utilisation n'est pas du tout sécurisé comme le montre le script suivant : </p>
+<div class="highlight"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span> <span class="na">src</span><span class="o">=</span><span class="s">&quot;https://www.dailysecurity.fr/labs/info.php&quot;</span><span class="p">&gt;&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">script</span> <span class="na">type</span><span class="o">=</span><span class="s">&#39;text/javascript&#39;</span><span class="p">&gt;</span>
+<span class="nx">alert</span><span class="p">(</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">info</span><span class="p">));</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<p>Vous pouvez faire le test chez vous depuis un fichier local ou sur un serveur distant, les informations de l'utilisateur sont affichées (en tenant compte de son cookie) : </p>
+<p><img src="https://www.dailysecurity.fr/images/info_xssi.png" alt="Info XSSI" style="width: 50%;"></p>
+<p>Un attaquant peut alors mettre en place le système suivant : </p>
+<p><img alt="Schéma XSSI Final" src="https://www.dailysecurity.fr/images/schema_xssi_2.png"></p>
+<p>Il existe des moyens permettant de charger d'autres types de fichiers (CSV, JSON) en jouant avec le charset des éléments HTML comme le montre ce <a href="https://www.mbsd.jp/Whitepaper/xssi.pdf">document</a>. </p>
+<p>Néanmoins, la plupart des contournements présentés ne fonctionnent plus sur les versions récentes des navigateurs.</p>
+<h2>Les XSS Oracle</h2>
+<p>Un exemple plus poussé des XSSI est présenté dans <a href="https://www.hurricanelabs.com/blog/new-xssi-vector-untold-merits-of-nosniff">l'article de Hurricane Labs</a>.</p>
+<p>Cet article détaille une méthode jusqu'ici méconnue utilisant à la fois les XSSI et les codes de retour HTTP.</p>
+<p>Admettons qu'une page d'un site retourne différents codes HTTP (200, 404, 302, etc...) en réponse à différentes requêtes de type GET.</p>
+<p>Il serait alors possible de récupérer ces codes à l'aide du handler onerror.</p>
+<p>En effet, en jouant avec ces handlers, il est possible d'extraire des données par le même procédé que lors d'une <em>Blind SQL injection</em> (c-à-d caractère par caractère) comme montré dans le script suivant : </p>
+<div class="highlight"><pre><span></span><code><span class="nt">&lt;script&gt;</span>
+function http200()
+{
+    alert(&quot;HTTP 200&quot;)
+}
+function http404()
+{
+    alert(&quot;HTTP 404&quot;)
+}
+<span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;script</span> <span class="na">src=</span><span class="s">&quot;https://www.dailysecurity.fr/labs/httpResponse.php&quot;</span> <span class="na">async=</span><span class="s">&quot;async&quot;</span> <span class="na">onerror=</span><span class="s">http404()</span> <span class="na">onload=</span><span class="s">http200()</span><span class="nt">&gt;&lt;/script&gt;</span>
+</code></pre></div>
+
+<p>httpResponse.php :</p>
+<div class="highlight"><pre><span></span><code><span class="o">&lt;?</span><span class="nx">php</span>
+<span class="k">if</span><span class="p">(</span><span class="nb">rand</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+<span class="p">{</span>
+    <span class="nb">http_response_code</span><span class="p">(</span><span class="mi">200</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">else</span> 
+<span class="p">{</span>
+    <span class="nb">http_response_code</span><span class="p">(</span><span class="mi">404</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="k">die</span><span class="p">();</span>
+</code></pre></div>
+
+<p>On peut donc faire la différence entre deux réponses grâce aux codes HTTP et aux handlers d'erreurs !</p>
+<p>Le mécanisme ci-dessus, permettant de savoir si une réponse est vraie ou fausse, est appelé <strong>Oracle XSS</strong>.</p>
+<p>Quelle utilité peut-on trouver à cette méthode ?</p>
+<p>Si le site distant possède un système de recherche d'utilisateurs uniquement disponible pour l’administrateur, on peut les lister ces utilisateurs en comparant les retours des codes HTTP.</p>
+<p>Il faudra bien sûr que la personne connectée soit l'administrateur du site.</p>
+<p>Exemple de scénario d'attaque via un oracle XSS : </p>
+<div class="highlight"><pre><span></span><code>GET /admin/search.php?user=j*  -&gt; 200 // &#39;j&#39; est donc notre premier caractère.
+GET /admin/search.php?user=ja* -&gt; 404 // Aucun utilisateur ne commence par &#39;ja&#39; on teste donc la lettre suivante.
+GET /admin/search.php?user=jb* -&gt; 404
+GET /admin/search.php?user=jc* -&gt; 404
+GET /admin/search.php?user=jd* -&gt; 404
+GET /admin/search.php?user=je* -&gt; 200
+---
+snip
+---
+GET /admin/search.php?user=jean -&gt; 200 // Nous avons récupéré l&#39;utilisateur &#39;jean&#39; ! 
+</code></pre></div>
+
+<p>Afin de stopper ce genre d'attaque, on peut utiliser les méthodes suivantes :</p>
+<ul>
+<li>On ajoute le header <code>X-Content-Type-Options: nosniff</code>, celui-ci protégeant des attaques sur les Content-Type.</li>
+<li>On évite de mettre des informations utilisateur dans des fichiers Javascript.</li>
+</ul>
+<p>Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon <a href="https://twitter.com/Geluchat">Twitter</a> pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.</p>
+<p>Geluchat.</p>
+
+
+    <div class="comments">
+        <div id="disqus_thread"></div>
+            <script type="text/javascript">
+                var disqus_shortname = 'dailysecurity-fr';
+                var disqus_identifier = 'xssi-sop-bypass';
+                var disqus_url = 'https://www.dailysecurity.fr/xssi-sop-bypass';
+                (function() {
+                    var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+                    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+                    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+                })();
+            </script>
+        <noscript>Please enable JavaScript to view the comments.</noscript>
+    </div>
+        
+    </div>
+        <!-- /Content -->
+
+        <!-- Footer -->
+        <div class="footer gradient-2">
+            <div class="container footer-container ">
+                <div class="row">
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Sitemap</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://www.dailysecurity.fr/archives.html">Archives</a></li>
+                            <li><a href="https://www.dailysecurity.fr/categories.html">Catégories</a></li>
+                            <li><a href="https://www.dailysecurity.fr/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">Flux RSS</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Social</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://twitter.com/Geluchat" target="_blank">Twitter</a></li>
+                            <li><a href="https://github.com/Geluchat" target="_blank">GitHub</a></li>
+                            <li><a href="https://www.linkedin.com/in/baptiste-devigne/" target="_blank">Linkedin</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-4 col-sm-3 col-md-3 col-lg-3">
+                        <div class="footer-title">Les blogs des amis</div>
+                        <ul class="list-unstyled">
+                            <li><a href="https://proofofcalc.com/" target="_blank">Proof of Calc</a></li>
+                            <li><a href="http://beta.hackndo.com" target="_blank">Blog de Pixis</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-xs-12 col-sm-3 col-md-3 col-lg-3">
+                        <p class="pull-right text-right">
+                            <small><em>Powered by <a href="http://docs.getpelican.com/" target="_blank">pelican</a></em></small><br/>
+                            <small><em>Theme <a href="https://github.com/molivier" target="_blank">molivier</a></em></small><br/>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /Footer -->
+        <!-- Google Analytics -->
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', 'UA-97100797-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        <!-- /Google Analytics -->
+     </body>
+</html>

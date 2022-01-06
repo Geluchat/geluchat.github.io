@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Daily Security - XSSI</title><link href="https://www.dailysecurity.fr/" rel="alternate"></link><link href="https://www.dailysecurity.fr/tag/xssi/feed/index.xhtml" rel="self"></link><id>https://www.dailysecurity.fr/</id><updated>2017-09-13T19:30:00+02:00</updated><entry><title>Les XSSI : Les limites de la Same-origin policy !</title><link href="https://www.dailysecurity.fr/xssi-sop-bypass" rel="alternate"></link><published>2017-09-13T19:30:00+02:00</published><updated>2017-09-13T19:30:00+02:00</updated><author><name>Geluchat</name></author><id>tag:www.dailysecurity.fr,2017-09-13:/xssi-sop-bypass</id><summary type="html">&lt;h2&gt;Qu'est-ce que la Same-origin policy :&lt;/h2&gt;
+&lt;p&gt;La &lt;strong&gt;Same-origin policy&lt;/strong&gt; ou plus simplement &lt;strong&gt;SOP&lt;/strong&gt; est l'une des protections les plus importantes du &lt;strong&gt;navigateur&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Elle sert à vérifier que les contenus chargés sur la page proviennent du &lt;strong&gt;même&lt;/strong&gt; domaine que celle-ci.&lt;/p&gt;
+&lt;p&gt;La &lt;a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript"&gt;documentation de Firefox&lt;/a&gt; nous donne un tableau qui montre comment fonctionnent …&lt;/p&gt;</summary><content type="html">&lt;h2&gt;Qu'est-ce que la Same-origin policy :&lt;/h2&gt;
+&lt;p&gt;La &lt;strong&gt;Same-origin policy&lt;/strong&gt; ou plus simplement &lt;strong&gt;SOP&lt;/strong&gt; est l'une des protections les plus importantes du &lt;strong&gt;navigateur&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Elle sert à vérifier que les contenus chargés sur la page proviennent du &lt;strong&gt;même&lt;/strong&gt; domaine que celle-ci.&lt;/p&gt;
+&lt;p&gt;La &lt;a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript"&gt;documentation de Firefox&lt;/a&gt; nous donne un tableau qui montre comment fonctionnent ces vérifications :
+&lt;img alt="Documentation SOP Firefox" src="https://www.dailysecurity.fr/images/firefox_sop_doc.png"&gt;&lt;/p&gt;
+&lt;p&gt;Pour faire simple, la &lt;em&gt;SOP&lt;/em&gt; évite qu'un attaquant puisse récupérer des informations d'un &lt;strong&gt;autre site&lt;/strong&gt; avec les droits de l'utilisateur connecté.&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple suivant qui montre un schéma d'attaque avec la SOP désactivée côté utilisateur :
+&lt;img alt="Schéma XSS" src="https://www.dailysecurity.fr/images/schema_xssi.png"&gt;&lt;/p&gt;
+&lt;p&gt;On voit ici que sans la &lt;em&gt;SOP&lt;/em&gt; n'importe quel site visité peut accéder à un autre site en utilisant les cookies de l'utilisateur.&lt;/p&gt;
+&lt;p&gt;Lorsque la &lt;em&gt;SOP&lt;/em&gt; est activée, une erreur apparaitra à l'étape 2 : &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Blocage d’une requête multiorigines (Cross-Origin Request) : la politique « Same Origin » ne permet pas de consulter la ressource distante.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2&gt;Les limites de la SOP&lt;/h2&gt;
+&lt;p&gt;Nous avons vu rapidement comment fonctionne la &lt;em&gt;SOP&lt;/em&gt;, reste maintenant à voir les limites de cette protection.&lt;/p&gt;
+&lt;p&gt;En effet, la &lt;em&gt;SOP&lt;/em&gt; doit être assez permissive pour pouvoir afficher des images ou charger du Javascript externe.&lt;/p&gt;
+&lt;p&gt;Les exemples suivants ne sont donc pas soumis à cette protection :&lt;/p&gt;
+&lt;p&gt;La balise &lt;code&gt;&amp;lt;img&amp;gt;&lt;/code&gt; :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;img&lt;/span&gt; &lt;span class="na"&gt;src&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;http://externe.dtd/image.png&amp;quot;&lt;/span&gt; &lt;span class="p"&gt;/&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;La balise &lt;code&gt;&amp;lt;script&amp;gt;&lt;/code&gt; :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt; &lt;span class="na"&gt;src&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&amp;lt;/&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;D'autres exemples de balises telles que les balises &lt;em&gt;link&lt;/em&gt; ou &lt;em&gt;video&lt;/em&gt; sont disponibles dans la &lt;a href="https://developer.mozilla.org/fr/docs/Web/JavaScript/Same_origin_policy_for_JavaScript"&gt;documentation de Firefox&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Ce mécanisme permissif permet d'envisager un scénario dans lequel la SOP ne fonctionne pas : l'utilisation de &lt;strong&gt;XSSI&lt;/strong&gt; !&lt;/p&gt;
+&lt;h2&gt;Les XSSI&lt;/h2&gt;
+&lt;p&gt;Alors, une XSSI, c'est quoi ?&lt;/p&gt;
+&lt;p&gt;Une XSSI, abréviation de &lt;strong&gt;Cross Site Script Inclusion&lt;/strong&gt;, est le fait d'inclure une page distante ayant un contenu en Javascript.&lt;/p&gt;
+&lt;p&gt;En effet, la balise &lt;code&gt;&amp;lt;script&amp;gt;&lt;/code&gt; inclut, via son attribut &lt;em&gt;src&lt;/em&gt;, une page externe qui est chargée comme étant du Javascript.&lt;/p&gt;
+&lt;p&gt;Prenons l'exemple de script PHP disponible &lt;a href="https://www.dailysecurity.fr/labs/info.php"&gt;ici&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Dans notre exemple, on suppose que la fonction &lt;code&gt;get_user_info()&lt;/code&gt; récupère les informations dans une base de données grâce au cookie utilisateur :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;&amp;lt;?&lt;/span&gt;&lt;span class="nx"&gt;php&lt;/span&gt;
+&lt;span class="c1"&gt;// Charge la session utilisateur&lt;/span&gt;
+&lt;span class="nb"&gt;session_start&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="k"&gt;function&lt;/span&gt; &lt;span class="nf"&gt;get_user_info&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="c1"&gt;// TODO : Récupérer les informations de l&amp;#39;utilisateur courant dans la base de données&lt;/span&gt;
+    &lt;span class="c1"&gt;// Dans notre exemple, les informations seront hardcodées&lt;/span&gt;
+    &lt;span class="nv"&gt;$info&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;{&amp;#39;user&amp;#39; : &amp;#39;Geluchat&amp;#39;, &amp;#39;API_KEY&amp;#39; : &amp;#39;l3x11sG00dBuT3l54J34n1sB3tt3r&amp;#39;}&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="nv"&gt;$info&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="nb"&gt;header&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;Content-Type: application/javascript&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="nv"&gt;$build_response&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;var info = [&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt; &lt;span class="nx"&gt;get_user_info&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt; &lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;];&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="k"&gt;echo&lt;/span&gt; &lt;span class="nv"&gt;$build_response&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On remarque que le script PHP change le Content-type de la page. On peut supposer que pour des raisons pratiques les informations sont chargées dynamiquement sur le site via du Javascript.&lt;/p&gt;
+&lt;p&gt;En revanche, ce type d'utilisation n'est pas du tout sécurisé comme le montre le script suivant : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt; &lt;span class="na"&gt;src&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;https://www.dailysecurity.fr/labs/info.php&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&amp;lt;/&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;span class="p"&gt;&amp;lt;&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt; &lt;span class="na"&gt;type&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s"&gt;&amp;#39;text/javascript&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;span class="nx"&gt;alert&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;JSON&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nx"&gt;stringify&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nx"&gt;info&lt;/span&gt;&lt;span class="p"&gt;));&lt;/span&gt;
+&lt;span class="p"&gt;&amp;lt;/&lt;/span&gt;&lt;span class="nt"&gt;script&lt;/span&gt;&lt;span class="p"&gt;&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Vous pouvez faire le test chez vous depuis un fichier local ou sur un serveur distant, les informations de l'utilisateur sont affichées (en tenant compte de son cookie) : &lt;/p&gt;
+&lt;p&gt;&lt;img src="https://www.dailysecurity.fr/images/info_xssi.png" alt="Info XSSI" style="width: 50%;"&gt;&lt;/p&gt;
+&lt;p&gt;Un attaquant peut alors mettre en place le système suivant : &lt;/p&gt;
+&lt;p&gt;&lt;img alt="Schéma XSSI Final" src="https://www.dailysecurity.fr/images/schema_xssi_2.png"&gt;&lt;/p&gt;
+&lt;p&gt;Il existe des moyens permettant de charger d'autres types de fichiers (CSV, JSON) en jouant avec le charset des éléments HTML comme le montre ce &lt;a href="https://www.mbsd.jp/Whitepaper/xssi.pdf"&gt;document&lt;/a&gt;. &lt;/p&gt;
+&lt;p&gt;Néanmoins, la plupart des contournements présentés ne fonctionnent plus sur les versions récentes des navigateurs.&lt;/p&gt;
+&lt;h2&gt;Les XSS Oracle&lt;/h2&gt;
+&lt;p&gt;Un exemple plus poussé des XSSI est présenté dans &lt;a href="https://www.hurricanelabs.com/blog/new-xssi-vector-untold-merits-of-nosniff"&gt;l'article de Hurricane Labs&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Cet article détaille une méthode jusqu'ici méconnue utilisant à la fois les XSSI et les codes de retour HTTP.&lt;/p&gt;
+&lt;p&gt;Admettons qu'une page d'un site retourne différents codes HTTP (200, 404, 302, etc...) en réponse à différentes requêtes de type GET.&lt;/p&gt;
+&lt;p&gt;Il serait alors possible de récupérer ces codes à l'aide du handler onerror.&lt;/p&gt;
+&lt;p&gt;En effet, en jouant avec ces handlers, il est possible d'extraire des données par le même procédé que lors d'une &lt;em&gt;Blind SQL injection&lt;/em&gt; (c-à-d caractère par caractère) comme montré dans le script suivant : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="nt"&gt;&amp;lt;script&amp;gt;&lt;/span&gt;
+function http200()
+{
+    alert(&amp;quot;HTTP 200&amp;quot;)
+}
+function http404()
+{
+    alert(&amp;quot;HTTP 404&amp;quot;)
+}
+&lt;span class="nt"&gt;&amp;lt;/script&amp;gt;&lt;/span&gt;
+&lt;span class="nt"&gt;&amp;lt;script&lt;/span&gt; &lt;span class="na"&gt;src=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;https://www.dailysecurity.fr/labs/httpResponse.php&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;async=&lt;/span&gt;&lt;span class="s"&gt;&amp;quot;async&amp;quot;&lt;/span&gt; &lt;span class="na"&gt;onerror=&lt;/span&gt;&lt;span class="s"&gt;http404()&lt;/span&gt; &lt;span class="na"&gt;onload=&lt;/span&gt;&lt;span class="s"&gt;http200()&lt;/span&gt;&lt;span class="nt"&gt;&amp;gt;&amp;lt;/script&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;httpResponse.php :&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;&lt;span class="o"&gt;&amp;lt;?&lt;/span&gt;&lt;span class="nx"&gt;php&lt;/span&gt;
+&lt;span class="k"&gt;if&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;rand&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;))&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nb"&gt;http_response_code&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;200&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="k"&gt;else&lt;/span&gt; 
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nb"&gt;http_response_code&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="mi"&gt;404&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="k"&gt;die&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;On peut donc faire la différence entre deux réponses grâce aux codes HTTP et aux handlers d'erreurs !&lt;/p&gt;
+&lt;p&gt;Le mécanisme ci-dessus, permettant de savoir si une réponse est vraie ou fausse, est appelé &lt;strong&gt;Oracle XSS&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Quelle utilité peut-on trouver à cette méthode ?&lt;/p&gt;
+&lt;p&gt;Si le site distant possède un système de recherche d'utilisateurs uniquement disponible pour l’administrateur, on peut les lister ces utilisateurs en comparant les retours des codes HTTP.&lt;/p&gt;
+&lt;p&gt;Il faudra bien sûr que la personne connectée soit l'administrateur du site.&lt;/p&gt;
+&lt;p&gt;Exemple de scénario d'attaque via un oracle XSS : &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;code&gt;GET /admin/search.php?user=j*  -&amp;gt; 200 // &amp;#39;j&amp;#39; est donc notre premier caractère.
+GET /admin/search.php?user=ja* -&amp;gt; 404 // Aucun utilisateur ne commence par &amp;#39;ja&amp;#39; on teste donc la lettre suivante.
+GET /admin/search.php?user=jb* -&amp;gt; 404
+GET /admin/search.php?user=jc* -&amp;gt; 404
+GET /admin/search.php?user=jd* -&amp;gt; 404
+GET /admin/search.php?user=je* -&amp;gt; 200
+---
+snip
+---
+GET /admin/search.php?user=jean -&amp;gt; 200 // Nous avons récupéré l&amp;#39;utilisateur &amp;#39;jean&amp;#39; ! 
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Afin de stopper ce genre d'attaque, on peut utiliser les méthodes suivantes :&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;On ajoute le header &lt;code&gt;X-Content-Type-Options: nosniff&lt;/code&gt;, celui-ci protégeant des attaques sur les Content-Type.&lt;/li&gt;
+&lt;li&gt;On évite de mettre des informations utilisateur dans des fichiers Javascript.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Voilà, c’est déjà terminé, n’hésitez pas à rejoindre mon &lt;a href="https://twitter.com/Geluchat"&gt;Twitter&lt;/a&gt; pour avoir des news sur le site et mon point de vue sur l’actualité de la sécurité informatique.&lt;/p&gt;
+&lt;p&gt;Geluchat.&lt;/p&gt;</content><category term="Journal de Geluchat"></category><category term="SOP"></category><category term="XSS"></category><category term="XSSI"></category><category term="Javascript"></category><category term="Failles Web"></category><category term="Tutoriel"></category></entry></feed>
